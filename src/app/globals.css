@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Elderly-friendly styling */
+body {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  color: #075985;
+  font-size: 1.125rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Large, accessible buttons */
+@layer components {
+  .btn-primary {
+    @apply px-8 py-4 text-2xl font-bold rounded-2xl bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 transition-colors duration-200 focus:outline-none focus:ring-4 focus:ring-primary-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl;
+  }
+
+  .btn-secondary {
+    @apply px-8 py-4 text-2xl font-bold rounded-2xl bg-primary-100 text-primary-700 hover:bg-primary-200 active:bg-primary-300 transition-colors duration-200 focus:outline-none focus:ring-4 focus:ring-primary-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl;
+  }
+
+  .btn-success {
+    @apply px-8 py-4 text-2xl font-bold rounded-2xl bg-success-500 text-white hover:bg-success-600 active:bg-success-700 transition-colors duration-200 focus:outline-none focus:ring-4 focus:ring-success-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl;
+  }
+
+  .btn-error {
+    @apply px-8 py-4 text-2xl font-bold rounded-2xl bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition-colors duration-200 focus:outline-none focus:ring-4 focus:ring-red-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-lg p-6 md:p-8;
+  }
+
+  .input-field {
+    @apply w-full px-6 py-4 text-2xl rounded-xl border-2 border-primary-300 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-200 transition-colors;
+  }
+
+  .label-text {
+    @apply block text-2xl font-bold mb-3 text-primary-700;
+  }
+
+  .game-title {
+    @apply text-4xl md:text-5xl font-bold text-primary-700 mb-6 text-center;
+  }
+
+  .score-display {
+    @apply text-3xl md:text-4xl font-bold text-primary-600 bg-primary-50 px-6 py-4 rounded-xl;
+  }
+
+  .info-badge {
+    @apply inline-block bg-primary-100 text-primary-700 px-6 py-3 rounded-xl text-xl font-bold;
+  }
+}
+
+/* Touch-friendly spacing for tablets */
+@media (max-width: 1024px) {
+  .btn-primary,
+  .btn-secondary,
+  .btn-success,
+  .btn-error {
+    @apply px-6 py-3 text-xl;
+    min-height: 60px;
+    min-width: 60px;
+  }
+
+  .card {
+    @apply p-4 md:p-6;
+  }
+
+  .input-field {
+    @apply px-4 py-3 text-xl;
+  }
+}
+
+/* Safe area for notches and bezels */
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Animation utilities */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes bounce-gentle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-in-out;
+}
+
+.animate-bounce-gentle {
+  animation: bounce-gentle 1s infinite;
+}
