@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
+//ทดสอบ
 // Dummy question generators for each game (replace with real logic)
 const QUESTION_BANK = {
   "color-matching": (level: number) => ({
