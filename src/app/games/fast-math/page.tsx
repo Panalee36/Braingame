@@ -1,8 +1,10 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { generateMathQuestion, calculateScore, getTimeLimit } from '@/utils/gameUtils'
+// ตรวจสอบ path ของ utils ให้ถูกต้อง
+import { generateMathQuestion, calculateScore, getTimeLimit, saveGameHistory } from '@/utils/gameUtils'
 
 interface MathQuestion {
   id: string
@@ -14,21 +16,30 @@ interface MathQuestion {
 }
 
 export default function FastMathGame() {
+  // --- 1. เพิ่มตัวแปรเช็ค Mode ---
+  const searchParams = useSearchParams();
+  const isDailyMode = searchParams.get('mode') === 'daily'; // เช็คว่าเป็นโหมดรายวันไหม
+  const levelFromQuery = parseInt(searchParams.get('level') || '1', 10);
+
   const [currentQuestion, setCurrentQuestion] = useState<MathQuestion | null>(null)
   const [score, setScore] = useState(0)
-  const [difficulty, setDifficulty] = useState(1)
+  
+  // ใช้ค่าจาก URL เป็นค่าเริ่มต้น
+  const [difficulty, setDifficulty] = useState(levelFromQuery)
+  
   const [gameStarted, setGameStarted] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
-  const [timeRemaining, setTimeRemaining] = useState(300)
-  const [totalTime, setTotalTime] = useState(0)
+  const [timeElapsed, setTimeElapsed] = useState(0)
   const [questionsAnswered, setQuestionsAnswered] = useState(0)
   const [correctAnswers, setCorrectAnswers] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [answered, setAnswered] = useState(false)
+  const [wrongAnswers, setWrongAnswers] = useState<Array<{question: MathQuestion, selected: number | null}>>([])
 
   // Initialize game
   const initializeGame = () => {
-    const newQuestion = generateMathQuestion(difficulty)
+    // ใช้ levelFromQuery หรือ difficulty ปัจจุบันในการเริ่มเกม
+    const newQuestion = generateMathQuestion(levelFromQuery)
     setCurrentQuestion(newQuestion)
     setScore(0)
     setGameStarted(true)
@@ -37,9 +48,17 @@ export default function FastMathGame() {
     setCorrectAnswers(0)
     setSelectedAnswer(null)
     setAnswered(false)
-    setTimeRemaining(getTimeLimit('fast-math', difficulty))
-    setTotalTime(0)
+    setTimeElapsed(0)
+    setWrongAnswers([])
   }
+
+  // --- 2. Auto Start สำหรับ Daily Mode ---
+  useEffect(() => {
+    // ถ้าเป็น Daily Mode และเกมยังไม่เริ่ม ให้เริ่มเลย
+    if (isDailyMode && !gameStarted && !gameCompleted) {
+        initializeGame();
+    }
+  }, [isDailyMode]); 
 
   // Load next question
   const loadNextQuestion = () => {
@@ -55,18 +74,45 @@ export default function FastMathGame() {
 
     setSelectedAnswer(answer)
     setAnswered(true)
-    setQuestionsAnswered(questionsAnswered + 1)
+    setQuestionsAnswered(prev => prev + 1)
 
     if (answer === currentQuestion?.correctAnswer) {
-      setCorrectAnswers(correctAnswers + 1)
-      setScore(score + 10 + difficulty * 2)
+      setCorrectAnswers(prev => prev + 1)
+      setScore(prev => prev + 1)
+    } else {
+      if (currentQuestion) {
+        setWrongAnswers(prev => [...prev, { question: currentQuestion, selected: answer }])
+      }
     }
 
     setTimeout(() => {
-      if (timeRemaining > 10) {
+      if (questionsAnswered + 1 < 10) {
         loadNextQuestion()
       } else {
-        setGameCompleted(true)
+        // Calculate final score (including last answer)
+        let finalScore = score;
+        if (answer === currentQuestion?.correctAnswer) {
+          finalScore += 1;
+        }
+        setGameCompleted(true);
+        // Save only if logged in
+        const username = localStorage.getItem('profile_username');
+        if (username) {
+          // Save play history (user-specific)
+          saveGameHistory(`fast-math_${username}`, finalScore);
+          // Save summary statistics (user-specific)
+          try {
+            const key = `stat_fast-math_${username}`;
+            const raw = localStorage.getItem(key);
+            let prev = { gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-' };
+            if (raw) prev = JSON.parse(raw);
+            const newGamesPlayed = prev.gamesPlayed + 1;
+            const newAverageScore = Math.round((prev.averageScore * prev.gamesPlayed + finalScore) / newGamesPlayed);
+            const newHighScore = Math.max(prev.highScore, finalScore);
+            const newLastPlayed = new Date().toISOString().slice(0, 10);
+            localStorage.setItem(key, JSON.stringify({ gamesPlayed: newGamesPlayed, averageScore: newAverageScore, highScore: newHighScore, lastPlayed: newLastPlayed }));
+          } catch {}
+        }
       }
     }, 1500)
   }
@@ -76,14 +122,7 @@ export default function FastMathGame() {
     if (!gameStarted || gameCompleted) return
 
     const timer = setInterval(() => {
-      setTimeRemaining((prev: number) => {
-        if (prev <= 1) {
-          setGameCompleted(true)
-          return 0
-        }
-        return prev - 1
-      })
-      setTotalTime((prev: number) => prev + 1)
+      setTimeElapsed((prev: number) => prev + 1)
     }, 1000)
 
     return () => clearInterval(timer)
@@ -91,62 +130,78 @@ export default function FastMathGame() {
 
   const successRate = questionsAnswered > 0 ? ((correctAnswers / questionsAnswered) * 100).toFixed(1) : '0'
 
+  // helper แปลงวินาทีเป็น mm:ss
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60)
+    const s = seconds % 60
+    return `${m}:${s.toString().padStart(2, '0')}`
+  }
+
+  // Helper แปลงค่าความยากเป็นข้อความ
+  const difficultyLabel = (level: number) => {
+    if (level <= 1) return 'ง่าย';
+    if (level >= 5) return 'ยาก';
+    return 'กลาง';
+  };
+  // ระดับถัดไป
+  const nextDifficulty = (level: number) => {
+    if (level <= 1) return 3;
+    if (level === 3) return 5;
+    return 5;
+  };
+  const nextDifficultyLabel = (level: number) => {
+    if (level <= 1) return 'กลาง';
+    if (level === 3) return 'ยาก';
+    return '';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 p-4 md:p-8 flex flex-col items-center">
       {/* Header */}
       <div className="w-full max-w-2xl mb-8">
-        <Link href="/" className="text-xl font-bold text-primary-600 hover:text-primary-700 mb-4 inline-block">
-          ← กลับหน้าแรก
-        </Link>
+          {/* ซ่อนปุ่มกลับหน้าหลักถ้าเป็น Daily Mode */}
+          {!isDailyMode && (
+            <Link
+                href="/welcome"
+                className="text-xl font-bold mb-4 inline-block px-6 py-2 border-4 border-primary-400 bg-white rounded-full shadow-lg text-primary-600 hover:bg-primary-50 hover:border-primary-600 hover:text-primary-800 transition-all duration-150"
+                style={{ boxShadow: '0 4px 16px 0 rgba(59,130,246,0.10)' }}
+            >
+                ← กลับหน้าหลัก
+            </Link>
+          )}
         <h1 className="game-title">🔢 เกมบวกเลข</h1>
       </div>
 
       {/* Game Stats */}
-      <div className="w-full max-w-2xl card mb-8 bg-white">
-        <div className="grid grid-cols-4 gap-4 text-center">
-          <div>
-            <p className="text-lg text-primary-500 mb-2">คะแนน</p>
-            <p className="score-display">{score}</p>
-          </div>
-          <div>
-            <p className="text-lg text-primary-500 mb-2">เวลา</p>
-            <p className="score-display">{timeRemaining}s</p>
-          </div>
-          <div>
-            <p className="text-lg text-primary-500 mb-2">ตอบถูก</p>
-            <p className="score-display">{correctAnswers}/{questionsAnswered}</p>
-          </div>
-          <div>
-            <p className="text-lg text-primary-500 mb-2">ระดับ</p>
-            <p className="score-display">{difficulty}</p>
+      {(!gameCompleted) && (
+        <div className="w-full max-w-2xl card mb-8 bg-white">
+          <div className="grid grid-cols-4 gap-4 text-center">
+            <div className="flex flex-col items-center justify-center min-w-[120px]">
+              <p className="text-lg text-primary-500 mb-2">คะแนน</p>
+              <span className="score-display text-4xl md:text-5xl">{score}</span>
+            </div>
+            <div className="flex flex-col items-center justify-center min-w-[120px]">
+              <p className="text-lg text-primary-500 mb-2">เวลา</p>
+              <span className="score-display text-4xl md:text-5xl">{formatTime(timeElapsed)}</span>
+            </div>
+            <div className="flex flex-col items-center justify-center min-w-[120px]">
+              <p className="text-lg text-primary-500 mb-2">คำถาม</p>
+              <span className="score-display text-4xl md:text-5xl leading-tight">{questionsAnswered}/10</span>
+            </div>
+            <div className="flex flex-col items-center justify-center min-w-[120px]">
+              <p className="text-lg text-primary-500 mb-2">ระดับ</p>
+              <span className="score-display text-4xl md:text-5xl">{difficultyLabel(difficulty)}</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Game Area */}
       {!gameStarted ? (
         <div className="w-full max-w-2xl">
           <div className="card text-center mb-8">
             <h2 className="text-4xl font-bold text-primary-700 mb-6">ยินดีต้อนรับ!</h2>
-            <p className="text-2xl text-primary-600 mb-8">
-              เลือกระดับความยาก เพื่อเริ่มเล่น
-            </p>
-
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              {[1, 2, 3, 4, 5].map((level) => (
-                <button
-                  key={level}
-                  onClick={() => setDifficulty(level)}
-                  className={`py-4 px-3 text-2xl font-bold rounded-xl transition-all ${
-                    difficulty === level
-                      ? 'btn-success'
-                      : 'btn-secondary'
-                  }`}
-                >
-                  {level}
-                </button>
-              ))}
-            </div>
+            <p className="text-2xl text-primary-600 mb-8">เริ่มเล่นตามระดับที่สุ่มมา</p>
 
             <button onClick={initializeGame} className="btn-primary w-full">
               เริ่มเล่น
@@ -154,7 +209,8 @@ export default function FastMathGame() {
           </div>
         </div>
       ) : gameCompleted ? (
-        <div className="w-full max-w-2xl">
+        // --- 3. ส่วนแสดงผลตอนจบเกม (ปรับปรุงใหม่) ---
+        <div className="w-full max-w-2xl animate-fade-in">
           <div className="card text-center">
             <h2 className="text-5xl font-bold text-success-600 mb-6">🎉 เสร็จสิ้น!</h2>
 
@@ -172,19 +228,44 @@ export default function FastMathGame() {
                 <p className="text-5xl font-bold text-success-700">{questionsAnswered}</p>
               </div>
               <div className="bg-blue-50 p-6 rounded-xl">
-                <p className="text-lg text-blue-600 mb-2">ใช้เวลา</p>
-                <p className="text-5xl font-bold text-blue-700">{totalTime}s</p>
+                <p className="text-lg text-blue-600 mb-2">ระดับ</p>
+                <p className="text-5xl font-bold text-blue-700">{difficultyLabel(difficulty)}</p>
+              </div>
+              <div className="bg-warning-50 p-6 rounded-xl">
+                <p className="text-lg text-warning-600 mb-2">ใช้เวลา</p>
+                <p className="text-5xl font-bold text-warning-700">{formatTime(timeElapsed)}</p>
               </div>
             </div>
 
-            <div className="flex gap-4 flex-col md:flex-row">
-              <button onClick={() => initializeGame()} className="btn-primary flex-1">
-                เล่นอีกครั้ง
-              </button>
-              <Link href="/" className="btn-secondary flex-1 text-center">
-                กลับหน้าแรก
-              </Link>
-            </div>
+            {/* ปุ่มควบคุมตอนจบเกม */}
+            {isDailyMode ? (
+                // === ปุ่มสำหรับ Daily Mode ===
+                <button 
+                  onClick={() => window.close()} 
+                  className="w-full py-4 bg-red-500 hover:bg-red-600 text-white text-2xl font-bold rounded-xl shadow-lg transition-transform hover:scale-105"
+                >
+                  ❌ ปิดหน้าต่าง (รับรางวัล)
+                </button>
+            ) : (
+                // === ปุ่มสำหรับเล่นปกติ ===
+                <div className="flex gap-4 flex-col md:flex-row">
+                    <button onClick={() => initializeGame()} className="btn-primary flex-1">
+                        เล่นอีกครั้ง
+                    </button>
+                    {(difficulty === 1 || difficulty === 3) && (
+                        <button
+                        onClick={() => {
+                            setDifficulty(nextDifficulty(difficulty));
+                            setTimeout(() => initializeGame(), 100);
+                        }}
+                        className="btn-success flex-1"
+                        >
+                        ถัดไป ({nextDifficultyLabel(difficulty)})
+                        </button>
+                    )}
+                </div>
+            )}
+
           </div>
         </div>
       ) : currentQuestion ? (

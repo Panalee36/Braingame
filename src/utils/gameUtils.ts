@@ -1,3 +1,19 @@
+// ฟังก์ชันสำหรับบันทึกประวัติการเล่นเกมแต่ละครั้ง (ทุกเกม)
+export function saveGameHistory(gameKey: string, score: number) {
+  const today = new Date().toISOString().slice(0, 10);
+  const key = `stat_${gameKey}_history`;
+  let history: Array<{score: number, date: string}> = [];
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) history = JSON.parse(raw);
+  } catch {}
+  history.push({ score, date: today });
+  localStorage.setItem(key, JSON.stringify(history));
+}
+// Helper สำหรับเพิ่มรูปภาพจริงเข้า pool
+export function addMemoryImage(label: string, filename: string) {
+  OBJECTS_FOR_MEMORY.push({ label, image: `/memory-images/${filename}` });
+}
 // Utility functions for game logic
 
 // Color Matching Game Utilities
@@ -36,16 +52,20 @@ export const generateColorCards = (difficulty: number) => {
 // Math Game Utilities
 export const generateMathQuestion = (difficulty: number) => {
   const level = Math.min(difficulty, 5)
-  const maxNum = level === 1 ? 9 : level === 2 ? 19 : level === 3 ? 49 : level === 4 ? 99 : 999
-  const num1 = Math.floor(Math.random() * maxNum) + 1
-  const num2 = Math.floor(Math.random() * maxNum) + 1
+    let min = 1, max = 10;
+    if (level === 2) { min = 10; max = 50; }
+    if (level === 3) { min = 20; max = 100; }
+    if (level === 4) { min = 50; max = 200; }
+    if (level === 5) { min = 10; max = 99; } // ด่าน 5 ใช้เลขหลักสิบ
+    const num1 = Math.floor(Math.random() * (max - min + 1)) + min;
+    const num2 = Math.floor(Math.random() * (max - min + 1)) + min;
 
   const correctAnswer = num1 + num2
   const options = [correctAnswer]
 
   // Generate wrong answers
   while (options.length < 4) {
-    const wrongAnswer = correctAnswer + (Math.random() - 0.5) * (maxNum * 0.5)
+      const wrongAnswer = correctAnswer + (Math.random() - 0.5) * (max * 0.5)
     const rounded = Math.floor(wrongAnswer)
     if (rounded > 0 && !options.includes(rounded)) {
       options.push(rounded)
@@ -64,6 +84,7 @@ export const generateMathQuestion = (difficulty: number) => {
 
 // Sequential Memory Game Utilities
 const OBJECTS_FOR_MEMORY = [
+  // Emoji ชุดเดิม
   { label: 'ส้ม', emoji: '🍊' },
   { label: 'แมว', emoji: '🐱' },
   { label: 'แอปเปิ้ล', emoji: '🍎' },
@@ -74,19 +95,49 @@ const OBJECTS_FOR_MEMORY = [
   { label: 'ดวงจันทร์', emoji: '🌙' },
   { label: 'ดาว', emoji: '⭐' },
   { label: 'เครื่องบิน', emoji: '✈️' },
+  // Emoji ชุดใหม่
+  { label: 'กล้วย', emoji: '🍌' },
+  { label: 'มะนาว', emoji: '🍋' },
+  { label: 'แตงโม', emoji: '🍉' },
+  { label: 'สับปะรด', emoji: '🍍' },
+  { label: 'หมู', emoji: '🐷' },
+  { label: 'สุนัข', emoji: '🐶' },
+  { label: 'ลิง', emoji: '🐵' },
+  { label: 'ไก่', emoji: '🐔' },
+  { label: 'ปลา', emoji: '🐟' },
+  { label: 'นก', emoji: '🐦' },
+  { label: 'เต่า', emoji: '🐢' },
+  { label: 'ช้าง', emoji: '🐘' },
+  { label: 'ม้า', emoji: '🐴' },
+  { label: 'แกะ', emoji: '🐑' },
+  { label: 'เป็ด', emoji: '🦆' },
+  // รูปภาพจริง (asset)
+  { label: 'ลิงจริง', image: '/memory-images/monkey.jpg' },
+  { label: 'ไก่จริง', image: '/memory-images/chicken.jpg' },
+  { label: 'แมวจริง', image: '/memory-images/cat.jpg' },
+  { label: 'ปลาจริง', image: '/memory-images/fish.jpg' },
+  { label: 'รถจริง', image: '/memory-images/car.jpg' },
+  { label: 'บ้านจริง', image: '/memory-images/house.jpg' },
+  { label: 'ดอกไม้จริง', image: '/memory-images/flower.jpg' },
+  { label: 'แอปเปิ้ลจริง', image: '/memory-images/apple.jpg' },
+  { label: 'ส้มจริง', image: '/memory-images/orange.jpg' },
+  { label: 'กล้วยจริง', image: '/memory-images/banana.jpg' },
+  { label: 'ภาพถ่าย', image: '/memory-images/photo' },
+  { label: 'ดอกเดซี่', image: '/memory-images/photo' },
 ]
 
 export const generateSequentialImages = (difficulty: number) => {
+  // สุ่มเฉพาะ emoji เท่านั้น ไม่ใช้รูปภาพ asset
   const count = Math.min(4 + difficulty, 8)
-  const selected = OBJECTS_FOR_MEMORY.slice(0, count)
-    .sort(() => Math.random() - 0.5)
-    .map((obj, index) => ({
-      id: `img-${index}`,
-      imageUrl: obj.emoji,
-      label: obj.label,
-      order: index,
-    }))
-
+  const pool = OBJECTS_FOR_MEMORY.filter(obj => obj.emoji)
+  const selectedObjs = pool.sort(() => Math.random() - 0.5).slice(0, count)
+  const selected = selectedObjs.map((obj, index) => ({
+    id: `img-${index}`,
+    imageUrl: obj.emoji,
+    label: obj.label,
+    order: index,
+    isAsset: false
+  }))
   return selected
 }
 
