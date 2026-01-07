@@ -1,7 +1,9 @@
-'use client'
+"use client"
 
 import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+// ตรวจสอบ path ของ utils ให้ถูกต้อง
 import { generateColorCards, calculateScore, getTimeLimit } from '@/utils/gameUtils'
 
 interface ColorCard {
@@ -13,15 +15,22 @@ interface ColorCard {
 }
 
 export default function ColorMatchingGame() {
+  // --- 1. เพิ่มตัวแปรเช็ค Mode ---
+  const searchParams = useSearchParams();
+  const isDailyMode = searchParams.get('mode') === 'daily'; // เช็คว่าเป็นโหมดรายวันไหม
+  const levelFromQuery = parseInt(searchParams.get('level') || '1', 10);
+
   const [cards, setCards] = useState<ColorCard[]>([])
   const [flippedCards, setFlippedCards] = useState<string[]>([])
   const [matchedPairs, setMatchedPairs] = useState(0)
   const [score, setScore] = useState(0)
-  const [difficulty, setDifficulty] = useState(1)
+  
+  // ใช้ค่าจาก URL เป็นค่าเริ่มต้น
+  const [difficulty, setDifficulty] = useState(levelFromQuery);
+  
   const [gameStarted, setGameStarted] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
-  const [timeRemaining, setTimeRemaining] = useState(180)
-  const [totalTime, setTotalTime] = useState(0)
+  const [timeElapsed, setTimeElapsed] = useState(0)
   const [moves, setMoves] = useState(0)
 
   // Initialize game
@@ -34,25 +43,24 @@ export default function ColorMatchingGame() {
     setMoves(0)
     setGameStarted(true)
     setGameCompleted(false)
-    setTimeRemaining(getTimeLimit('color-matching', difficulty))
-    setTotalTime(0)
+    setTimeElapsed(0)
   }
+
+  // --- 2. Auto Start สำหรับ Daily Mode ---
+  useEffect(() => {
+    // ถ้าเป็น Daily Mode และเกมยังไม่เริ่ม ให้เริ่มเลย
+    if (isDailyMode && !gameStarted && !gameCompleted) {
+        initializeGame();
+    }
+  }, [isDailyMode]); // ทำงานเมื่อโหลดหน้ามาแล้วเจอ mode=daily
 
   // Timer effect
   useEffect(() => {
     if (!gameStarted || gameCompleted) return
 
     const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          setGameCompleted(true)
-          return 0
-        }
-        return prev - 1
-      })
-      setTotalTime((prev) => prev + 1)
+      setTimeElapsed((prev) => prev + 1)
     }, 1000)
-
     return () => clearInterval(timer)
   }, [gameStarted, gameCompleted])
 
@@ -67,13 +75,13 @@ export default function ColorMatchingGame() {
 
     if (newFlipped.length === 2) {
       const [first, second] = newFlipped
-      const firstCard = cards.find((c) => c.id === first)
-      const secondCard = cards.find((c) => c.id === second)
+      const firstCard = cards.find((c: ColorCard) => c.id === first)
+      const secondCard = cards.find((c: ColorCard) => c.id === second)
 
       if (firstCard && secondCard && firstCard.color === secondCard.color) {
         // Match found
         setCards(
-          cards.map((c) =>
+          cards.map((c: ColorCard) =>
             c.id === first || c.id === second ? { ...c, isMatched: true } : c,
           ),
         )
@@ -93,8 +101,35 @@ export default function ColorMatchingGame() {
   useEffect(() => {
     if (gameStarted && matchedPairs > 0 && matchedPairs === cards.length / 2) {
       setGameCompleted(true)
+      // Save only if logged in
+      const username = localStorage.getItem('profile_username');
+      if (username) {
+        // Save play history (user-specific)
+        try {
+          // Save score to history
+          const today = new Date().toISOString().slice(0, 10);
+          const key = `stat_color-matching_history_${username}`;
+          let history = [];
+          const raw = localStorage.getItem(key);
+          if (raw) history = JSON.parse(raw);
+          history.push({ score, date: today });
+          localStorage.setItem(key, JSON.stringify(history));
+        } catch {}
+        // Save summary statistics (user-specific)
+        try {
+          const key = `stat_color-matching_${username}`;
+          const raw = localStorage.getItem(key);
+          let prev = { gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-' };
+          if (raw) prev = JSON.parse(raw);
+          const newGamesPlayed = prev.gamesPlayed + 1;
+          const newAverageScore = Math.round((prev.averageScore * prev.gamesPlayed + score) / newGamesPlayed);
+          const newHighScore = Math.max(prev.highScore, score);
+          const newLastPlayed = new Date().toISOString().slice(0, 10);
+          localStorage.setItem(key, JSON.stringify({ gamesPlayed: newGamesPlayed, averageScore: newAverageScore, highScore: newHighScore, lastPlayed: newLastPlayed }));
+        } catch {}
+      }
     }
-  }, [matchedPairs, cards, gameStarted])
+  }, [matchedPairs, cards, gameStarted, score])
 
   const totalCards = cards.length || 8
   const maxPairs = totalCards / 2
@@ -103,9 +138,12 @@ export default function ColorMatchingGame() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 p-4 md:p-8 flex flex-col items-center">
       {/* Header */}
       <div className="w-full max-w-2xl mb-8">
-        <Link href="/" className="text-xl font-bold text-primary-600 hover:text-primary-700 mb-4 inline-block">
-          ← กลับหน้าแรก
-        </Link>
+          {/* ซ่อนปุ่มกลับหน้าหลักถ้าเป็น Daily Mode */}
+          {!isDailyMode && (
+             <Link href="/welcome" className="text-xl font-bold text-primary-600 hover:text-primary-700 mb-4 inline-block">
+             ← กลับหน้าแรก
+             </Link>
+          )}
         <h1 className="game-title">🎨 เกมจับคู่สี</h1>
       </div>
 
@@ -118,7 +156,7 @@ export default function ColorMatchingGame() {
           </div>
           <div>
             <p className="text-lg text-primary-500 mb-2">เวลา</p>
-            <p className="score-display">{timeRemaining}s</p>
+            <p className="score-display">{timeElapsed}s</p>
           </div>
           <div>
             <p className="text-lg text-primary-500 mb-2">คู่ที่จับได้</p>
@@ -164,7 +202,8 @@ export default function ColorMatchingGame() {
           </div>
         </div>
       ) : gameCompleted ? (
-        <div className="w-full max-w-2xl">
+        // --- 3. ส่วนแสดงผลตอนจบเกม (ปรับปรุงใหม่) ---
+        <div className="w-full max-w-2xl animate-fade-in">
           <div className="card text-center">
             <h2 className="text-5xl font-bold text-success-600 mb-6">🎉 ยินดีด้วย!</h2>
             <p className="text-3xl text-primary-600 mb-8">
@@ -178,18 +217,30 @@ export default function ColorMatchingGame() {
               </div>
               <div className="bg-warning-50 p-6 rounded-xl">
                 <p className="text-lg text-warning-600 mb-2">ใช้เวลา</p>
-                <p className="text-5xl font-bold text-warning-700">{totalTime}s</p>
+                <p className="text-5xl font-bold text-warning-700">{timeElapsed}s</p>
               </div>
             </div>
 
-            <div className="flex gap-4 flex-col md:flex-row">
-              <button onClick={() => initializeGame()} className="btn-primary flex-1">
-                เล่นอีกครั้ง
-              </button>
-              <Link href="/" className="btn-secondary flex-1 text-center">
-                กลับหน้าแรก
-              </Link>
-            </div>
+            {/* ปุ่มควบคุมตอนจบเกม */}
+            {isDailyMode ? (
+                // === ปุ่มสำหรับ Daily Mode ===
+                <button 
+                  onClick={() => window.close()} 
+                  className="w-full py-4 bg-red-500 hover:bg-red-600 text-white text-2xl font-bold rounded-xl shadow-lg transition-transform hover:scale-105"
+                >
+                  ❌ ปิดหน้าต่าง (รับรางวัล)
+                </button>
+            ) : (
+                // === ปุ่มสำหรับเล่นปกติ ===
+                <div className="flex gap-4 flex-col md:flex-row">
+                  <button onClick={() => initializeGame()} className="btn-primary flex-1">
+                    เล่นอีกครั้ง
+                  </button>
+                  <Link href="/" className="btn-secondary flex-1 text-center flex items-center justify-center">
+                    กลับหน้าแรก
+                  </Link>
+                </div>
+            )}
           </div>
         </div>
       ) : (

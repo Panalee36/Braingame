@@ -1,164 +1,284 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+
+// --- Interface ---
+interface GameStatistic {
+  key: string;
+  gameType: string;
+  gamesPlayed: number;
+  averageScore: number;
+  highScore: number;
+  lastPlayed: string;
+  icon: string; // เพิ่ม icon string เพื่อความง่ายในการแสดงผล
+}
+
+interface HistoryItem {
+  score: number;
+  date: string;
+}
+
+// --- Logout Logic ---
+const handleLogout = () => {
+  document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+  localStorage.removeItem('profile_username');
+  localStorage.removeItem('profile_age');
+  localStorage.removeItem('anonId');
+  
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && (key.startsWith('stat_'))) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach((key) => localStorage.removeItem(key));
+};
 
 export default function ProfilePage() {
-  // Mock user data
-  const user = {
-    username: 'ผู้ใช้ทดสอบ',
-    email: 'user@example.com',
-    age: 65,
-    joinDate: '2024-01-15',
-    totalGamesPlayed: 42,
-    averageScore: 850,
-    highScore: 1200,
-  }
+  // เพิ่ม icon emoji เข้าไปในข้อมูลเริ่มต้น
+  const [statistics, setStatistics] = useState<GameStatistic[]>([
+    { key: 'color-matching', gameType: 'เกมจับคู่สี', gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-', icon: '🎨' },
+    { key: 'fast-math', gameType: 'เกมบวกเลข', gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-', icon: '➕' },
+    { key: 'sequential-memory', gameType: 'เกมจำลำดับภาพ', gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-', icon: '🧠' },
+    { key: 'animal-sound', gameType: 'เกมฟังเสียงสัตว์', gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-', icon: '🐶' },
+    { key: 'vocabulary', gameType: 'เกมจำศัพท์', gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-', icon: '📚' },
+  ]);
 
-  const statistics = [
-    {
-      gameType: 'เกมจับคู่สี',
-      gamesPlayed: 12,
-      averageScore: 850,
-      highScore: 1200,
-      lastPlayed: '2024-11-12',
-    },
-    {
-      gameType: 'เกมบวกเลข',
-      gamesPlayed: 10,
-      averageScore: 920,
-      highScore: 1500,
-      lastPlayed: '2024-11-11',
-    },
-    {
-      gameType: 'เกมจำลำดับภาพ',
-      gamesPlayed: 8,
-      averageScore: 780,
-      highScore: 950,
-      lastPlayed: '2024-11-10',
-    },
-    {
-      gameType: 'เกมฟังเสียงสัตว์',
-      gamesPlayed: 7,
-      averageScore: 800,
-      highScore: 1100,
-      lastPlayed: '2024-11-09',
-    },
-    {
-      gameType: 'เกมจำศัพท์',
-      gamesPlayed: 5,
-      averageScore: 650,
-      highScore: 900,
-      lastPlayed: '2024-11-08',
-    },
-  ]
+  const [gameHistories, setGameHistories] = useState<Record<string, HistoryItem[]>>({});
+  const [anonId, setAnonId] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [age, setAge] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  
+  // State สำหรับเปิด/ปิด ดูประวัติ
+  const [expandedGame, setExpandedGame] = useState<string | null>(null);
+
+  const router = useRouter();
+
+  // 1. โหลดข้อมูล History
+  useEffect(() => {
+    const histories: Record<string, HistoryItem[]> = {};
+    statistics.forEach((stat) => {
+      const raw = localStorage.getItem(`stat_${stat.key}_history`);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          histories[stat.key] = Array.isArray(parsed) ? parsed.reverse() : [];
+        } catch {
+          histories[stat.key] = [];
+        }
+      } else {
+        histories[stat.key] = [];
+      }
+    });
+    setGameHistories(histories);
+  }, []);
+
+  // 2. Check Auth
+  useEffect(() => {
+    const hasToken = document.cookie.split(';').some((item) => item.trim().startsWith('token='));
+    const hasLocalProfile = typeof window !== 'undefined' && (localStorage.getItem('profile_username') || localStorage.getItem('anonId'));
+    
+    if (!hasToken && !hasLocalProfile) {
+      router.replace('/login');
+      return;
+    }
+    setReady(true);
+  }, [router]);
+
+  // 3. Load Stats & Profile
+  useEffect(() => {
+    setAnonId(localStorage.getItem('anonId'));
+    setUsername(localStorage.getItem('profile_username'));
+    setAge(localStorage.getItem('profile_age'));
+
+    setStatistics((prevStats) =>
+      prevStats.map((stat) => {
+        const raw = localStorage.getItem(`stat_${stat.key}`);
+        if (!raw) return stat;
+        try {
+          const data = JSON.parse(raw);
+          return {
+            ...stat,
+            gamesPlayed: Number(data.gamesPlayed) || 0,
+            averageScore: Number(data.averageScore) || 0,
+            highScore: Number(data.highScore) || 0,
+            lastPlayed: data.lastPlayed || '-',
+          };
+        } catch {
+          return stat;
+        }
+      })
+    );
+  }, []);
+
+  const onLogout = useCallback(() => {
+    handleLogout();
+    router.replace('/login');
+  }, [router]);
+
+  const toggleHistory = (key: string) => {
+    setExpandedGame(expandedGame === key ? null : key);
+  };
+
+  // --- 💡 ปรับปรุง Avatar URL ---
+  // ใช้ 'avataaars' ให้ดูเป็นคนมากขึ้น และบังคับให้ยิ้ม (mouth=smile) เสมอ
+  const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username || 'user'}&mouth=smile&eyebrows=default&eyes=happy`;
+
+  if (!ready) return <div className="min-h-screen flex items-center justify-center text-xl text-blue-600">กำลังโหลดข้อมูล...</div>;
+
+  // คำนวณสถิติ
+  const totalGamesPlayed = statistics.reduce((sum, stat) => sum + stat.gamesPlayed, 0);
+  const activeGamesCount = statistics.filter(s => s.gamesPlayed > 0).length;
+  // const calculatedAverageScore = activeGamesCount > 0 
+  //   ? statistics.reduce((sum, stat) => sum + stat.averageScore, 0) / activeGamesCount 
+  //   : 0;
+  const bestGame = statistics.reduce((prev, current) => (prev.highScore > current.highScore) ? prev : current);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 p-4 md:p-8">
-      <div className="w-full max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <Link href="/" className="text-xl font-bold text-primary-600 hover:text-primary-700 mb-4 inline-block">
-            ← กลับหน้าแรก
-          </Link>
-          <h1 className="game-title">👤 โปรไฟล์ของฉัน</h1>
-        </div>
-
-        {/* User Info Card */}
-        <div className="card bg-white mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <h2 className="text-3xl font-bold text-primary-700 mb-6">{user.username}</h2>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-lg text-primary-500">อีเมล</p>
-                  <p className="text-2xl font-bold text-primary-700">{user.email}</p>
-                </div>
-                <div>
-                  <p className="text-lg text-primary-500">อายุ</p>
-                  <p className="text-2xl font-bold text-primary-700">{user.age} ปี</p>
-                </div>
-                <div>
-                  <p className="text-lg text-primary-500">วันที่เข้าร่วม</p>
-                  <p className="text-2xl font-bold text-primary-700">{user.joinDate}</p>
-                </div>
-              </div>
+    <div className="min-h-screen bg-slate-50 font-sans pb-10">
+      
+      {/* --- ส่วน Header พื้นหลังสีฟ้า --- */}
+      <div className="bg-blue-600 pb-24 pt-10 px-4 md:px-8 rounded-b-[3rem] shadow-lg">
+        <div className="max-w-4xl mx-auto text-center md:text-left flex flex-col md:flex-row items-center gap-6">
+          
+          {/* Avatar กรอบใหญ่ชัดเจน */}
+          <div className="relative">
+            <div className="w-36 h-36 md:w-44 md:h-44 rounded-full bg-white border-4 border-white shadow-xl overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
             </div>
-
-            <div className="bg-primary-50 p-8 rounded-2xl">
-              <h3 className="text-2xl font-bold text-primary-700 mb-6">สถิติทั่วไป</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <p className="text-xl text-primary-600">จำนวนเกมที่เล่น</p>
-                  <p className="text-3xl font-bold text-primary-700">{user.totalGamesPlayed}</p>
-                </div>
-                <div className="flex justify-between items-center">
-                  <p className="text-xl text-primary-600">คะแนนเฉลี่ย</p>
-                  <p className="text-3xl font-bold text-primary-700">{user.averageScore}</p>
-                </div>
-                <div className="flex justify-between items-center">
-                  <p className="text-xl text-primary-600">คะแนนสูงสุด</p>
-                  <p className="text-3xl font-bold text-success-600">{user.highScore}</p>
-                </div>
+            {/* ป้ายอายุแบบชัดๆ */}
+            {age && (
+              <div className="absolute bottom-0 right-0 bg-orange-400 text-white text-lg font-bold px-4 py-1 rounded-full shadow-md border-2 border-white">
+                อายุ {age}
               </div>
+            )}
+          </div>
+
+          <div className="text-white flex-1">
+            <h1 className="text-3xl md:text-5xl font-bold mb-2 drop-shadow-md">
+              สวัสดีคุณ {username || 'สมาชิก'}!
+            </h1>
+            <p className="text-blue-100 text-lg md:text-xl font-light">
+              ยินดีต้อนรับกลับมาฝึกสมองกันนะครับ
+            </p>
+            <div className="mt-2 text-sm text-blue-200 opacity-80">
+              รหัสสมาชิก: {anonId || '-'}
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Statistics by Game */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-primary-700 mb-6">สถิติแต่ละเกม</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {statistics.map((stat, index) => (
-              <div key={index} className="card hover:shadow-xl transition-shadow">
-                <h3 className="text-2xl font-bold text-primary-700 mb-6">{stat.gameType}</h3>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-lg text-primary-500">เล่นแล้ว</p>
-                    <p className="text-2xl font-bold text-primary-700">{stat.gamesPlayed} ครั้ง</p>
-                  </div>
-                  <div>
-                    <p className="text-lg text-primary-500">คะแนนเฉลี่ย</p>
-                    <p className="text-2xl font-bold text-primary-700">{stat.averageScore}</p>
-                  </div>
-                  <div>
-                    <p className="text-lg text-primary-500">คะแนนสูงสุด</p>
-                    <p className="text-2xl font-bold text-success-600">{stat.highScore}</p>
-                  </div>
-                  <div>
-                    <p className="text-lg text-primary-500">เล่นล่าสุด</p>
-                    <p className="text-xl font-bold text-primary-600">{stat.lastPlayed}</p>
-                  </div>
+      <div className="max-w-4xl mx-auto px-4 -mt-16">
+        
+        {/* --- การ์ดสถิติรวม (เน้นตัวใหญ่ อ่านง่าย) --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div className="bg-white rounded-3xl p-6 shadow-lg flex items-center justify-between border-l-8 border-blue-500">
+                <div>
+                    <p className="text-gray-500 text-lg font-semibold">เล่นไปแล้วทั้งหมด</p>
+                    <p className="text-4xl md:text-5xl font-bold text-slate-800 mt-1">{totalGamesPlayed} <span className="text-xl font-normal text-gray-400">ครั้ง</span></p>
                 </div>
-              </div>
-            ))}
-          </div>
+                <div className="text-5xl opacity-20">🎮</div>
+            </div>
+            <div className="bg-white rounded-3xl p-6 shadow-lg flex items-center justify-between border-l-8 border-green-500">
+                <div>
+                    <p className="text-gray-500 text-lg font-semibold">เกมที่ทำได้ดีที่สุด</p>
+                    <p className="text-2xl md:text-3xl font-bold text-slate-800 mt-1">{bestGame.highScore > 0 ? bestGame.gameType : '-'}</p>
+                    <p className="text-green-600 font-bold text-xl">สูงสุด {bestGame.highScore} คะแนน</p>
+                </div>
+                <div className="text-5xl opacity-20">🏆</div>
+            </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-4 flex-col md:flex-row mb-8">
-          <Link href="/" className="btn-primary flex-1 text-center">
-            กลับไปเล่นเกม
-          </Link>
-          <button className="btn-secondary flex-1">
-            แก้ไขโปรไฟล์
-          </button>
-          <button className="btn-error flex-1">
-            ออกจากระบบ
-          </button>
+        {/* --- ปุ่มเมนูหลัก (ปุ่มใหญ่พิเศษ) --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+            <Link href="/welcome" className="bg-blue-600 hover:bg-blue-700 text-white text-xl md:text-2xl font-bold py-6 rounded-2xl shadow-lg text-center transition-transform active:scale-95 flex items-center justify-center gap-3">
+                <span>🎮</span> กลับไปหน้าเลือกเกม
+            </Link>
+            <button onClick={onLogout} className="bg-white border-2 border-red-200 text-red-500 hover:bg-red-50 text-xl font-bold py-6 rounded-2xl text-center transition-colors">
+                ออกจากระบบ
+            </button>
         </div>
 
-        {/* Footer Tips */}
-        <div className="card bg-blue-50">
-          <h3 className="text-3xl font-bold text-primary-700 mb-4">💡 เคล็ดลับการเล่น</h3>
-          <ul className="text-xl text-primary-600 space-y-3">
-            <li>✓ เล่นเกมสม่ำเสมอเพื่อผลลัพธ์ที่ดีที่สุด</li>
-            <li>✓ พยายามเพิ่มคะแนนเฉลี่ยของคุณทุกวัน</li>
-            <li>✓ ทดลองเกมที่แตกต่างกันเพื่อกระตุ้นส่วนต่าง ๆ ของสมอง</li>
-            <li>✓ กำหนดเป้าหมายใหม่และพยายามให้ถึง</li>
-          </ul>
+        {/* --- รายการประวัติการเล่น --- */}
+        <h2 className="text-2xl md:text-3xl font-bold text-slate-700 mb-6 border-b-2 border-gray-200 pb-2">
+            📋 ประวัติผลการเล่นของคุณ
+        </h2>
+
+        <div className="space-y-5">
+            {statistics.map((stat) => {
+                const isExpanded = expandedGame === stat.key;
+                const history = gameHistories[stat.key] || [];
+                
+                return (
+                    <div key={stat.key} className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+                        {/* ส่วนหัวของ Card (คลิกเพื่อขยาย) */}
+                        <div 
+                            onClick={() => toggleHistory(stat.key)}
+                            className="p-6 cursor-pointer hover:bg-slate-50 transition-colors flex flex-col md:flex-row justify-between items-center gap-4"
+                        >
+                            <div className="flex items-center gap-5 w-full md:w-auto">
+                                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-3xl shadow-inner">
+                                    {stat.icon}
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-bold text-slate-800">{stat.gameType}</h3>
+                                    <p className="text-gray-500 text-lg">เล่นล่าสุด: {stat.lastPlayed}</p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between w-full md:w-auto gap-8 bg-gray-50 md:bg-transparent p-4 md:p-0 rounded-xl">
+                                <div className="text-center md:text-right">
+                                    <p className="text-sm text-gray-500 font-semibold">คะแนนสูงสุด</p>
+                                    <p className="text-3xl font-black text-blue-600">{stat.highScore}</p>
+                                </div>
+                                <div className={`text-gray-400 text-2xl transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                                    ▼
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ส่วนตารางประวัติ (เลื่อนลงมา) */}
+                        <div className={`transition-all duration-300 ease-in-out bg-slate-50 ${isExpanded ? 'max-h-96 opacity-100 overflow-y-auto' : 'max-h-0 opacity-0 overflow-hidden'}`}>
+                            {history.length > 0 ? (
+                                <table className="w-full text-left border-t border-gray-200">
+                                    <thead className="bg-gray-200 text-gray-600 text-lg">
+                                        <tr>
+                                            <th className="px-6 py-3 font-semibold">วันที่และเวลา</th>
+                                            <th className="px-6 py-3 text-right font-semibold">คะแนนที่ได้</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-lg">
+                                        {history.map((item, idx) => (
+                                            <tr key={idx} className="border-b border-gray-100 bg-white hover:bg-blue-50">
+                                                <td className="px-6 py-4 text-slate-700">
+                                                    {new Date(item.date).toLocaleDateString('th-TH', {
+                                                        year: '2-digit', month: 'short', day: 'numeric',
+                                                        hour: '2-digit', minute: '2-digit'
+                                                    })} น.
+                                                </td>
+                                                <td className="px-6 py-4 text-right font-bold text-blue-700">
+                                                    {item.score}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            ) : (
+                                <div className="p-8 text-center text-gray-500 text-lg">
+                                    ยังไม่เคยเล่นเกมนี้เลย ลองไปเล่นดูนะครับ!
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            })}
         </div>
       </div>
     </div>
-  )
+  );
 }

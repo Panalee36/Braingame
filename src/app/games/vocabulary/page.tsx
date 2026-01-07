@@ -1,12 +1,17 @@
-'use client'
+"use client"
+
+// บันทึกสถิติลง localStorage เมื่อเล่นจบ
+// ...existing code...
 
 import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   generateVocabularyWords,
   generateVocabularyOptions,
   calculateScore,
   getTimeLimit,
+  saveGameHistory,
 } from '@/utils/gameUtils'
 
 interface VocabularyWord {
@@ -19,9 +24,15 @@ export default function VocabularyGame() {
   const [displayedWords, setDisplayedWords] = useState<VocabularyWord[]>([])
   const [selectionOptions, setSelectionOptions] = useState<VocabularyWord[]>([])
   const [selectedWords, setSelectedWords] = useState<VocabularyWord[]>([])
+  
+  // --- 1. เช็ค Mode และ Level ---
+  const searchParams = useSearchParams();
+  const isDailyMode = searchParams.get('mode') === 'daily';
+  const levelFromQuery = parseInt(searchParams.get('level') || '1', 10);
+
   const [showWords, setShowWords] = useState(true)
   const [score, setScore] = useState(0)
-  const [difficulty, setDifficulty] = useState(1)
+  const [difficulty, setDifficulty] = useState(levelFromQuery)
   const [gameStarted, setGameStarted] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState(600)
@@ -45,6 +56,13 @@ export default function VocabularyGame() {
     setDisplayTimer(10)
     setShowDisplayTimer(true)
   }
+
+  // --- 2. Auto Start Effect ---
+  useEffect(() => {
+    if (isDailyMode && !gameStarted && !gameCompleted) {
+        initializeGame();
+    }
+  }, [isDailyMode]);
 
   // Display timer effect
   useEffect(() => {
@@ -94,7 +112,23 @@ export default function VocabularyGame() {
 
       if (selectedWords.length + 1 === displayedWords.length) {
         setScore(score + 10 + difficulty * 2 + 50)
-        setGameCompleted(true)
+        setGameCompleted(true);
+        // Save only if logged in
+        const username = localStorage.getItem('profile_username');
+        if (username) {
+          saveGameHistory(`vocabulary_${username}`, score);
+          try {
+            const key = `stat_vocabulary_${username}`;
+            const raw = localStorage.getItem(key);
+            let prev = { gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-' };
+            if (raw) prev = JSON.parse(raw);
+            const newGamesPlayed = prev.gamesPlayed + 1;
+            const newAverageScore = Math.round((prev.averageScore * prev.gamesPlayed + score) / newGamesPlayed);
+            const newHighScore = Math.max(prev.highScore, score);
+            const newLastPlayed = new Date().toISOString().slice(0, 10);
+            localStorage.setItem(key, JSON.stringify({ gamesPlayed: newGamesPlayed, averageScore: newAverageScore, highScore: newHighScore, lastPlayed: newLastPlayed }));
+          } catch {}
+        }
       }
     } else {
       setScore(Math.max(0, score - 10))
@@ -109,9 +143,11 @@ export default function VocabularyGame() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 p-4 md:p-8 flex flex-col items-center">
       {/* Header */}
       <div className="w-full max-w-4xl mb-8">
-        <Link href="/" className="text-xl font-bold text-primary-600 hover:text-primary-700 mb-4 inline-block">
-          ← กลับหน้าแรก
-        </Link>
+        {!isDailyMode && (
+             <Link href="/welcome" className="text-xl font-bold text-primary-600 hover:text-primary-700 mb-4 inline-block">
+             ← กลับหน้าแรก
+           </Link>
+        )}
         <h1 className="game-title">📚 เกมจำศัพท์</h1>
       </div>
 
@@ -147,29 +183,13 @@ export default function VocabularyGame() {
             <p className="text-2xl text-primary-600 mb-8">
               ดูคำศัพท์ 10 วินาที แล้วเลือกคำที่เห็น
             </p>
-
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              {[1, 2, 3, 4, 5].map((level) => (
-                <button
-                  key={level}
-                  onClick={() => setDifficulty(level)}
-                  className={`py-4 px-3 text-2xl font-bold rounded-xl transition-all ${
-                    difficulty === level
-                      ? 'btn-success'
-                      : 'btn-secondary'
-                  }`}
-                >
-                  {level}
-                </button>
-              ))}
-            </div>
-
             <button onClick={initializeGame} className="btn-primary w-full">
               เริ่มเล่น
             </button>
           </div>
         </div>
       ) : gameCompleted ? (
+        // --- 3. UI หน้าจบเกมแบบใหม่ ---
         <div className="w-full max-w-4xl">
           <div className="card text-center">
             <h2 className="text-5xl font-bold text-success-600 mb-6">🎉 ยินดีด้วย!</h2>
@@ -188,14 +208,27 @@ export default function VocabularyGame() {
               </div>
             </div>
 
-            <div className="flex gap-4 flex-col md:flex-row">
-              <button onClick={() => initializeGame()} className="btn-primary flex-1">
-                เล่นอีกครั้ง
-              </button>
-              <Link href="/" className="btn-secondary flex-1 text-center">
-                กลับหน้าแรก
-              </Link>
-            </div>
+            {isDailyMode ? (
+                // ปุ่มสำหรับ Daily Mode
+                <div className="flex justify-center mt-4">
+                     <button 
+                      onClick={() => window.close()} 
+                      className="w-full max-w-md py-4 bg-red-500 hover:bg-red-600 text-white text-2xl font-bold rounded-xl shadow-lg transition-transform hover:scale-105"
+                    >
+                      ❌ ปิดหน้าต่าง (รับรางวัล)
+                    </button>
+                </div>
+            ) : (
+                // ปุ่มสำหรับโหมดปกติ
+                <div className="flex gap-4 flex-col md:flex-row">
+                    <button onClick={() => initializeGame()} className="btn-primary flex-1">
+                        เล่นอีกครั้ง
+                    </button>
+                    <Link href="/welcome" className="btn-secondary flex-1 text-center">
+                        กลับหน้าแรก
+                    </Link>
+                </div>
+            )}
           </div>
         </div>
       ) : (

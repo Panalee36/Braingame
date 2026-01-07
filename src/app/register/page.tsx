@@ -1,88 +1,117 @@
-'use client'
+"use client";
 
-import React, { useState } from 'react'
-import Link from 'next/link'
+import { useState } from "react";
 
 export default function RegisterPage() {
-  const [username, setUsername] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [age, setAge] = useState('')
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [age, setAge] = useState("");
+  const [message, setMessage] = useState("");
 
-  const handleRegister = () => {
-    // TODO: Implement actual registration
-    console.log('Register:', { username, email, password, age })
-  }
+  const handleRegister = async (e: any) => {
+    e.preventDefault();
+
+    const res = await fetch("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username,
+        password,
+        age,
+      }),
+    });
+
+    const data = await res.json();
+    setMessage(data.message);
+
+    if (res.ok) {
+      // ล้างข้อมูลเก่า (ถ้ามี) ก่อนสมัครใหม่
+      localStorage.removeItem('profile_username');
+      localStorage.removeItem('profile_age');
+      localStorage.removeItem('anonId');
+      // ล้างสถิติและประวัติทุกเกมของผู้ใช้เดิม
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.startsWith('stat_color-matching_') ||
+          key.startsWith('stat_color-matching_history_') ||
+          key.startsWith('stat_fast-math_') ||
+          key.startsWith('stat_fast-math_history_') ||
+          key.startsWith('stat_sequential-memory_') ||
+          key.startsWith('stat_sequential-memory_history_') ||
+          key.startsWith('stat_animal-sound_') ||
+          key.startsWith('stat_animal-sound_history_') ||
+          key.startsWith('stat_vocabulary_') ||
+          key.startsWith('stat_vocabulary_history_')
+        )) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+      setUsername("");
+      setPassword("");
+      setAge("");
+      // เก็บข้อมูลลง localStorage เพื่อให้ welcome page แสดงไอคอนโปรไฟล์ทันที
+      localStorage.setItem('profile_username', data.username || username);
+      localStorage.setItem('profile_age', data.age || age);
+      if (data.anonId) {
+        localStorage.setItem('anonId', data.anonId);
+      }
+      // ไปหน้าโปรไฟล์ทันทีหลังสมัครสมาชิก
+      window.location.replace('/profile');
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 p-4 md:p-8 flex flex-col items-center justify-center">
-      <div className="w-full max-w-md">
-        <div className="card text-center mb-8">
-          <h1 className="text-5xl font-bold text-primary-700 mb-4">🧠 เกมฝึกสมอง</h1>
-          <h2 className="text-3xl font-bold text-primary-600 mb-8">สมัครสมาชิก</h2>
+    <div className="flex justify-center p-6">
+      <form
+        onSubmit={handleRegister}
+        className="bg-white p-8 rounded-xl shadow-lg w-80"
+      >
+        <h1 className="text-2xl font-bold text-center mb-4">
+          🧠 เกมฝึกสมอง <br /> สมัครสมาชิก
+        </h1>
 
-          <div className="space-y-6 mb-8">
-            <div>
-              <label className="label-text">ชื่อผู้ใช้</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="input-field"
-                placeholder="กรุณาใส่ชื่อผู้ใช้"
-              />
-            </div>
+        <label>ชื่อผู้ใช้</label>
+        <input
+          className="w-full p-2 border rounded mb-3"
+          placeholder="กรุณาใส่ชื่อผู้ใช้"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
 
-            <div>
-              <label className="label-text">อีเมล</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="input-field"
-                placeholder="กรุณาใส่อีเมล"
-              />
-            </div>
+        <label>รหัสผ่าน</label>
+        <input
+          type="password"
+          className="w-full p-2 border rounded mb-3"
+          placeholder="กรุณาใส่รหัสผ่าน 🙈"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
 
-            <div>
-              <label className="label-text">รหัสผ่าน</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input-field"
-                placeholder="กรุณาใส่รหัสผ่าน"
-              />
-            </div>
+        <label>อายุ</label>
+        <input
+          type="number"
+          className="w-full p-2 border rounded mb-3"
+          placeholder="กรุณาใส่อายุ"
+          value={age}
+          onChange={(e) => setAge(e.target.value)}
+        />
 
-            <div>
-              <label className="label-text">อายุ</label>
-              <input
-                type="number"
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
-                className="input-field"
-                placeholder="กรุณาใส่อายุ"
-              />
-            </div>
-          </div>
+        <button
+          type="submit"
+          className="w-full p-2 bg-blue-400 text-white rounded-lg mt-3"
+        >
+          สมัครสมาชิก
+        </button>
 
-          <button onClick={handleRegister} className="btn-primary w-full mb-4">
-            สมัครสมาชิก
-          </button>
-
-          <p className="text-lg text-primary-600 mb-4">
-            มีบัญชีแล้ว?{' '}
-            <Link href="/login" className="font-bold text-primary-700 hover:text-primary-800">
-              เข้าสู่ระบบ
-            </Link>
+        {message && (
+          <p className="text-center mt-3 text-blue-600 font-semibold">
+            {message}
           </p>
-
-          <Link href="/" className="btn-secondary w-full text-center">
-            กลับหน้าแรก
-          </Link>
-        </div>
-      </div>
+        )}
+      </form>
     </div>
-  )
+  );
 }
