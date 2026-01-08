@@ -1,68 +1,106 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-// ตรวจสอบ path ของ utils ให้ถูกต้อง
-import { generateMathQuestion, calculateScore, getTimeLimit, saveGameHistory } from '@/utils/gameUtils'
+import { generateMathQuestion, getTimeLimit } from '@/utils/gameUtils'
 
 interface MathQuestion {
   id: string
   num1: number
   num2: number
-  operation: '+'
+  operation: '+' | '-'
   correctAnswer: number
   options: number[]
 }
 
 export default function FastMathGame() {
-  // --- 1. เพิ่มตัวแปรเช็ค Mode ---
-  const searchParams = useSearchParams();
-  const isDailyMode = searchParams.get('mode') === 'daily'; // เช็คว่าเป็นโหมดรายวันไหม
-  const levelFromQuery = parseInt(searchParams.get('level') || '1', 10);
-
   const [currentQuestion, setCurrentQuestion] = useState<MathQuestion | null>(null)
-  const [score, setScore] = useState(0)
-  
-  // ใช้ค่าจาก URL เป็นค่าเริ่มต้น
-  const [difficulty, setDifficulty] = useState(levelFromQuery)
-  
+  // Fixed single difficulty level
+  const DIFFICULTY = 1
   const [gameStarted, setGameStarted] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
-  const [timeElapsed, setTimeElapsed] = useState(0)
+  const [timeRemaining, setTimeRemaining] = useState(120)
+  const [totalTime, setTotalTime] = useState(0)
   const [questionsAnswered, setQuestionsAnswered] = useState(0)
   const [correctAnswers, setCorrectAnswers] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [answered, setAnswered] = useState(false)
-  const [wrongAnswers, setWrongAnswers] = useState<Array<{question: MathQuestion, selected: number | null}>>([])
+  const [showDemo, setShowDemo] = useState(false)
+  const [demoStep, setDemoStep] = useState(0)
+  const timeRef = useRef<number>(timeRemaining)
+  const answerTimeoutRef = useRef<number | null>(null)
+  const gameCompletedRef = useRef<boolean>(gameCompleted)
+  const demoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Initialize game
   const initializeGame = () => {
-    // ใช้ levelFromQuery หรือ difficulty ปัจจุบันในการเริ่มเกม
-    const newQuestion = generateMathQuestion(levelFromQuery)
+    // clear any pending answer timeout when restarting
+    if (answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current)
+      answerTimeoutRef.current = null
+    }
+    gameCompletedRef.current = false
+    const newQuestion = generateMathQuestion(DIFFICULTY)
     setCurrentQuestion(newQuestion)
-    setScore(0)
     setGameStarted(true)
     setGameCompleted(false)
     setQuestionsAnswered(0)
     setCorrectAnswers(0)
     setSelectedAnswer(null)
     setAnswered(false)
-    setTimeElapsed(0)
-    setWrongAnswers([])
+    setTimeRemaining(getTimeLimit('fast-math', DIFFICULTY))
+    setTotalTime(0)
   }
 
-  // --- 2. Auto Start สำหรับ Daily Mode ---
-  useEffect(() => {
-    // ถ้าเป็น Daily Mode และเกมยังไม่เริ่ม ให้เริ่มเลย
-    if (isDailyMode && !gameStarted && !gameCompleted) {
-        initializeGame();
+  // Start demo mode
+  const startDemo = () => {
+    setShowDemo(true)
+    setDemoStep(0)
+    const demoQuestion = generateMathQuestion(DIFFICULTY)
+    setCurrentQuestion(demoQuestion)
+    setGameStarted(false)
+    setGameCompleted(false)
+    setQuestionsAnswered(0)
+    setCorrectAnswers(0)
+    setSelectedAnswer(null)
+    setAnswered(false)
+    setTimeRemaining(120)
+    setTotalTime(0)
+
+    // Show demo steps - slower timing for elderly users
+    demoTimeoutRef.current = setTimeout(() => {
+      setDemoStep(1) // Show math problem
+      demoTimeoutRef.current = setTimeout(() => {
+        setDemoStep(2) // Show options
+        demoTimeoutRef.current = setTimeout(() => {
+          setSelectedAnswer(demoQuestion.correctAnswer)
+          setDemoStep(3) // Show correct answer
+          demoTimeoutRef.current = setTimeout(() => {
+            setDemoStep(4) // End demo
+          }, 3000)
+        }, 3000)
+      }, 2000)
+    }, 2000)
+  }
+
+  // Close demo
+  const closeDemo = () => {
+    setShowDemo(false)
+    if (demoTimeoutRef.current) {
+      clearTimeout(demoTimeoutRef.current)
+      demoTimeoutRef.current = null
     }
-  }, [isDailyMode]); 
+  }
 
   // Load next question
   const loadNextQuestion = () => {
-    const newQuestion = generateMathQuestion(difficulty)
+    // clear any lingering timeouts before loading next
+    if (answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current)
+      answerTimeoutRef.current = null
+    }
+
+    const newQuestion = generateMathQuestion(DIFFICULTY)
     setCurrentQuestion(newQuestion)
     setSelectedAnswer(null)
     setAnswered(false)
@@ -74,45 +112,34 @@ export default function FastMathGame() {
 
     setSelectedAnswer(answer)
     setAnswered(true)
-    setQuestionsAnswered(prev => prev + 1)
+
+    // use functional updates to avoid stale state
+    setQuestionsAnswered((q) => q + 1)
 
     if (answer === currentQuestion?.correctAnswer) {
-      setCorrectAnswers(prev => prev + 1)
-      setScore(prev => prev + 1)
-    } else {
-      if (currentQuestion) {
-        setWrongAnswers(prev => [...prev, { question: currentQuestion, selected: answer }])
-      }
+      setCorrectAnswers((c) => c + 1)
     }
 
-    setTimeout(() => {
-      if (questionsAnswered + 1 < 10) {
-        loadNextQuestion()
+    // clear any previous timeout
+    if (answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current)
+      answerTimeoutRef.current = null
+    }
+
+    // schedule next question; check latest remaining time and game-completed ref to avoid stale closures
+    answerTimeoutRef.current = window.setTimeout(() => {
+      answerTimeoutRef.current = null
+      if (gameCompletedRef.current) return
+      if (timeRef.current <= 1) {
+        // clear any pending timeouts and mark completed
+        if (answerTimeoutRef.current) {
+          clearTimeout(answerTimeoutRef.current)
+          answerTimeoutRef.current = null
+        }
+        gameCompletedRef.current = true
+        setGameCompleted(true)
       } else {
-        // Calculate final score (including last answer)
-        let finalScore = score;
-        if (answer === currentQuestion?.correctAnswer) {
-          finalScore += 1;
-        }
-        setGameCompleted(true);
-        // Save only if logged in
-        const username = localStorage.getItem('profile_username');
-        if (username) {
-          // Save play history (user-specific)
-          saveGameHistory(`fast-math_${username}`, finalScore);
-          // Save summary statistics (user-specific)
-          try {
-            const key = `stat_fast-math_${username}`;
-            const raw = localStorage.getItem(key);
-            let prev = { gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-' };
-            if (raw) prev = JSON.parse(raw);
-            const newGamesPlayed = prev.gamesPlayed + 1;
-            const newAverageScore = Math.round((prev.averageScore * prev.gamesPlayed + finalScore) / newGamesPlayed);
-            const newHighScore = Math.max(prev.highScore, finalScore);
-            const newLastPlayed = new Date().toISOString().slice(0, 10);
-            localStorage.setItem(key, JSON.stringify({ gamesPlayed: newGamesPlayed, averageScore: newAverageScore, highScore: newHighScore, lastPlayed: newLastPlayed }));
-          } catch {}
-        }
+        loadNextQuestion()
       }
     }, 1500)
   }
@@ -122,103 +149,168 @@ export default function FastMathGame() {
     if (!gameStarted || gameCompleted) return
 
     const timer = setInterval(() => {
-      setTimeElapsed((prev: number) => prev + 1)
+      setTimeRemaining((prev: number) => {
+        if (prev <= 1) {
+          // clear any pending answer timeout to avoid later callbacks
+          if (answerTimeoutRef.current) {
+            clearTimeout(answerTimeoutRef.current)
+            answerTimeoutRef.current = null
+          }
+          gameCompletedRef.current = true
+          setGameCompleted(true)
+          return 0
+        }
+        return prev - 1
+      })
+      setTotalTime((prev: number) => prev + 1)
     }, 1000)
 
     return () => clearInterval(timer)
   }, [gameStarted, gameCompleted])
 
+  // keep a ref of the latest remaining time so delayed callbacks can read fresh value
+  useEffect(() => {
+    timeRef.current = timeRemaining
+  }, [timeRemaining])
+
+  // keep ref of gameCompleted in sync
+  useEffect(() => {
+    gameCompletedRef.current = gameCompleted
+  }, [gameCompleted])
+
+  // cleanup pending answer timeout when game completes/unmounts
+  useEffect(() => {
+    if (gameCompleted && answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current)
+      answerTimeoutRef.current = null
+    }
+    return () => {
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current)
+        answerTimeoutRef.current = null
+      }
+    }
+  }, [gameCompleted])
+
+  // cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current)
+        answerTimeoutRef.current = null
+      }
+    }
+  }, [])
+
   const successRate = questionsAnswered > 0 ? ((correctAnswers / questionsAnswered) * 100).toFixed(1) : '0'
 
-  // helper แปลงวินาทีเป็น mm:ss
+  // Format seconds into MM:SS for display
   const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60)
-    const s = seconds % 60
-    return `${m}:${s.toString().padStart(2, '0')}`
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
   }
-
-  // Helper แปลงค่าความยากเป็นข้อความ
-  const difficultyLabel = (level: number) => {
-    if (level <= 1) return 'ง่าย';
-    if (level >= 5) return 'ยาก';
-    return 'กลาง';
-  };
-  // ระดับถัดไป
-  const nextDifficulty = (level: number) => {
-    if (level <= 1) return 3;
-    if (level === 3) return 5;
-    return 5;
-  };
-  const nextDifficultyLabel = (level: number) => {
-    if (level <= 1) return 'กลาง';
-    if (level === 3) return 'ยาก';
-    return '';
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 p-4 md:p-8 flex flex-col items-center">
       {/* Header */}
       <div className="w-full max-w-2xl mb-8">
-          {/* ซ่อนปุ่มกลับหน้าหลักถ้าเป็น Daily Mode */}
-          {!isDailyMode && (
-            <Link
-                href="/welcome"
-                className="text-xl font-bold mb-4 inline-block px-6 py-2 border-4 border-primary-400 bg-white rounded-full shadow-lg text-primary-600 hover:bg-primary-50 hover:border-primary-600 hover:text-primary-800 transition-all duration-150"
-                style={{ boxShadow: '0 4px 16px 0 rgba(59,130,246,0.10)' }}
-            >
-                ← กลับหน้าหลัก
-            </Link>
-          )}
+        <Link href="/" className="text-xl font-bold text-primary-600 hover:text-primary-700 mb-4 inline-block">
+          ← กลับหน้าแรก
+        </Link>
         <h1 className="game-title">🔢 เกมบวกเลข</h1>
       </div>
 
-      {/* Game Stats */}
-      {(!gameCompleted) && (
-        <div className="w-full max-w-2xl card mb-8 bg-white">
-          <div className="grid grid-cols-4 gap-4 text-center">
-            <div className="flex flex-col items-center justify-center min-w-[120px]">
-              <p className="text-lg text-primary-500 mb-2">คะแนน</p>
-              <span className="score-display text-4xl md:text-5xl">{score}</span>
-            </div>
-            <div className="flex flex-col items-center justify-center min-w-[120px]">
+      <div className="w-full max-w-2xl card mb-8 bg-white">
+        <div className="p-6">
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div>
               <p className="text-lg text-primary-500 mb-2">เวลา</p>
-              <span className="score-display text-4xl md:text-5xl">{formatTime(timeElapsed)}</span>
+              <p className="score-display">{formatTime(timeRemaining)}</p>
             </div>
-            <div className="flex flex-col items-center justify-center min-w-[120px]">
-              <p className="text-lg text-primary-500 mb-2">คำถาม</p>
-              <span className="score-display text-4xl md:text-5xl leading-tight">{questionsAnswered}/10</span>
-            </div>
-            <div className="flex flex-col items-center justify-center min-w-[120px]">
-              <p className="text-lg text-primary-500 mb-2">ระดับ</p>
-              <span className="score-display text-4xl md:text-5xl">{difficultyLabel(difficulty)}</span>
+            <div>
+              <p className="text-lg text-primary-500 mb-2">ตอบถูก</p>
+              <p className="score-display">{correctAnswers}/{questionsAnswered}</p>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Game Area */}
-      {!gameStarted ? (
+      {showDemo ? (
+        <div className="w-full max-w-2xl">
+          <div className="card text-center mb-8 border-4 border-success-400 bg-success-50">
+            <h2 className="text-3xl font-bold text-success-600 mb-4">📖 ตัวอย่างการเล่น</h2>
+            <p className="text-lg text-primary-600 mb-6">
+              {demoStep === 0 && 'กำลังเตรียมตัวอย่าง...'}
+              {demoStep === 1 && 'ขั้นตอนที่ 1: ดูโจทย์คณิตศาสตร์'}
+              {demoStep === 2 && 'ขั้นตอนที่ 2: เลือกคำตอบที่ถูกต้อง'}
+              {demoStep === 3 && 'ขั้นตอนที่ 3: คำตอบที่ถูกต้องจะถูกสีขึ้น'}
+              {demoStep === 4 && 'ตัวอย่างจบแล้ว! คุณพร้อมเล่นเกมจริงแล้วหรือ?'}
+            </p>
+
+            {currentQuestion && (
+              <div className="mb-6 p-6 bg-white rounded-xl">
+                {demoStep >= 1 && (
+                  <div className="text-5xl font-bold text-primary-700 mb-6 p-4 bg-primary-100 rounded-lg">
+                    {currentQuestion.num1} {currentQuestion.operation} {currentQuestion.num2} = ?
+                  </div>
+                )}
+
+                {demoStep >= 2 && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {currentQuestion.options.map((option, index) => (
+                      <button
+                        key={index}
+                        disabled={true}
+                        className={`py-4 px-3 text-2xl font-bold rounded-lg transition-all ${
+                          selectedAnswer === option
+                            ? 'bg-success-400 text-white scale-110'
+                            : 'bg-blue-200 text-primary-700'
+                        }`}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-4">
+              <button onClick={closeDemo} className="btn-secondary flex-1">
+                ปิด
+              </button>
+              {demoStep === 4 && (
+                <button onClick={() => { closeDemo(); initializeGame() }} className="btn-primary flex-1">
+                  เริ่มเล่นเลย!
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : !gameStarted ? (
         <div className="w-full max-w-2xl">
           <div className="card text-center mb-8">
             <h2 className="text-4xl font-bold text-primary-700 mb-6">ยินดีต้อนรับ!</h2>
-            <p className="text-2xl text-primary-600 mb-8">เริ่มเล่นตามระดับที่สุ่มมา</p>
-
-            <button onClick={initializeGame} className="btn-primary w-full">
-              เริ่มเล่น
-            </button>
+            
+            <div className="flex gap-4">
+              <button onClick={initializeGame} className="btn-primary flex-1">
+                เริ่มเล่น
+              </button>
+              <button onClick={startDemo} className="btn-secondary flex-1">
+                ดูตัวอย่าง
+              </button>
+            </div>
           </div>
         </div>
       ) : gameCompleted ? (
-        // --- 3. ส่วนแสดงผลตอนจบเกม (ปรับปรุงใหม่) ---
-        <div className="w-full max-w-2xl animate-fade-in">
+        <div className="w-full max-w-2xl">
           <div className="card text-center">
             <h2 className="text-5xl font-bold text-success-600 mb-6">🎉 เสร็จสิ้น!</h2>
 
             <div className="grid grid-cols-2 gap-6 mb-8">
-              <div className="bg-primary-50 p-6 rounded-xl">
-                <p className="text-lg text-primary-500 mb-2">คะแนนสุดท้าย</p>
-                <p className="text-5xl font-bold text-primary-700">{score}</p>
-              </div>
+              {/* Final score removed per request */}
               <div className="bg-warning-50 p-6 rounded-xl">
                 <p className="text-lg text-warning-600 mb-2">ความถูกต้อง</p>
                 <p className="text-5xl font-bold text-warning-700">{successRate}%</p>
@@ -228,44 +320,19 @@ export default function FastMathGame() {
                 <p className="text-5xl font-bold text-success-700">{questionsAnswered}</p>
               </div>
               <div className="bg-blue-50 p-6 rounded-xl">
-                <p className="text-lg text-blue-600 mb-2">ระดับ</p>
-                <p className="text-5xl font-bold text-blue-700">{difficultyLabel(difficulty)}</p>
-              </div>
-              <div className="bg-warning-50 p-6 rounded-xl">
-                <p className="text-lg text-warning-600 mb-2">ใช้เวลา</p>
-                <p className="text-5xl font-bold text-warning-700">{formatTime(timeElapsed)}</p>
+                <p className="text-lg text-blue-600 mb-2">ใช้เวลา</p>
+                <p className="text-5xl font-bold text-blue-700">{formatTime(totalTime)}</p>
               </div>
             </div>
 
-            {/* ปุ่มควบคุมตอนจบเกม */}
-            {isDailyMode ? (
-                // === ปุ่มสำหรับ Daily Mode ===
-                <button 
-                  onClick={() => window.close()} 
-                  className="w-full py-4 bg-red-500 hover:bg-red-600 text-white text-2xl font-bold rounded-xl shadow-lg transition-transform hover:scale-105"
-                >
-                  ❌ ปิดหน้าต่าง (รับรางวัล)
-                </button>
-            ) : (
-                // === ปุ่มสำหรับเล่นปกติ ===
-                <div className="flex gap-4 flex-col md:flex-row">
-                    <button onClick={() => initializeGame()} className="btn-primary flex-1">
-                        เล่นอีกครั้ง
-                    </button>
-                    {(difficulty === 1 || difficulty === 3) && (
-                        <button
-                        onClick={() => {
-                            setDifficulty(nextDifficulty(difficulty));
-                            setTimeout(() => initializeGame(), 100);
-                        }}
-                        className="btn-success flex-1"
-                        >
-                        ถัดไป ({nextDifficultyLabel(difficulty)})
-                        </button>
-                    )}
-                </div>
-            )}
-
+            <div className="flex gap-4 flex-col md:flex-row">
+              <button onClick={() => initializeGame()} className="btn-primary flex-1">
+                เล่นอีกครั้ง
+              </button>
+              <Link href="/" className="btn-secondary flex-1 text-center">
+                กลับหน้าแรก
+              </Link>
+            </div>
           </div>
         </div>
       ) : currentQuestion ? (
@@ -297,10 +364,7 @@ export default function FastMathGame() {
         </div>
       ) : null}
 
-      {/* Footer */}
-      <footer className="text-center text-lg text-primary-600 mt-8">
-        <p>เล่นเกมสม่ำเสมอเพื่อกระตุ้นสมองของคุณ</p>
-      </footer>
+      {/* Footer removed per request */}
     </div>
   )
 }
