@@ -18,6 +18,7 @@ export default function ColorMatchingGame() {
   const [flippedCards, setFlippedCards] = useState<string[]>([])
   const [matchedPairs, setMatchedPairs] = useState(0)
   const [difficulty, setDifficulty] = useState(1)
+  const [difficultyChoice, setDifficultyChoice] = useState<number | null>(null)
   const [mode, setMode] = useState<'pair' | 'shape' | 'selective'>('pair')
   const [gameStarted, setGameStarted] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
@@ -32,8 +33,10 @@ export default function ColorMatchingGame() {
   const demoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Initialize game
-  const initializeGame = () => {
-    startPreview(difficulty)
+  const initializeGame = (level: number = difficulty) => {
+    setDifficulty(level)
+    setDifficultyChoice(level)
+    startPreview(level)
   }
 
   // Start demo mode
@@ -277,38 +280,51 @@ export default function ColorMatchingGame() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 p-4 md:p-8 flex flex-col items-center">
-      {/* Header */}
-      <div className="w-full max-w-2xl mb-8">
-        <Link href="/" className="text-xl font-bold text-primary-600 hover:text-primary-700 mb-4 inline-block">
-          ← กลับหน้าแรก
-        </Link>
-        <h1 className="game-title">🎨 เกมจับคู่สี</h1>
-      </div>
-
-      {/* Game Stats */}
-      <div className="w-full max-w-2xl card mb-8 bg-white">
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <p className="text-lg text-primary-500 mb-2">เวลา</p>
-            <p className="score-display">{formatTime(totalTime)}</p>
-          </div>
-          <div>
-            <p className="text-lg text-primary-500 mb-2">คู่ที่จับได้</p>
-            <p className="score-display">{matchedPairs}/{displayMax}</p>
-          </div>
-          <div>
-            <p className="text-lg text-primary-500 mb-2">ระดับ</p>
-            <p className="score-display">{difficulty}</p>
-          </div>
+      {/* Header Tab */}
+      <div className="w-full bg-white/80 backdrop-blur-md border-b border-white shadow-sm py-6 sticky top-0 z-50 mb-8">
+        <div className="max-w-6xl mx-auto px-6 flex items-center justify-center relative">
+          <Link 
+            href="/welcome" 
+            className="absolute left-6 flex items-center gap-2 px-6 py-3 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl shadow-lg hover:shadow-xl hover:scale-110 transition-all active:scale-95 text-white font-black text-lg border-2 border-blue-400"
+          >
+            <span>←</span> กลับหน้าแรก
+          </Link>
+          <h1 className="text-3xl md:text-4xl font-black text-blue-900 tracking-tight">
+            🎨 เกมจับคู่สี
+          </h1>
+          <button onClick={startDemo} className="absolute right-6 flex items-center justify-center w-14 h-14 bg-gradient-to-br from-yellow-300 to-yellow-400 hover:from-yellow-400 hover:to-yellow-500 rounded-xl shadow-lg hover:shadow-xl hover:scale-110 transition-all active:scale-95 font-black text-4xl border-2 border-yellow-200">
+            💡
+          </button>
         </div>
       </div>
+      {/* Top stats bar - Three cards */}
+      {gameStarted && !previewing && !gameCompleted && (
+        <div className="sticky top-4 z-40 w-full max-w-4xl mb-8 mx-auto">
+          <div className="grid grid-cols-3 gap-6">
+            <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-lg p-8 text-center border border-white">
+              <p className="text-lg font-black text-slate-400 uppercase tracking-widest mb-3">เวลา</p>
+              <p className="text-6xl font-black text-blue-600 tabular-nums">{formatTime(totalTime)}</p>
+            </div>
+
+            <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-lg p-8 text-center border border-white">
+              <p className="text-lg font-black text-slate-400 uppercase tracking-widest mb-3">คู่ที่จับได้</p>
+              <p className="text-6xl font-black text-cyan-600 tabular-nums">{matchedPairs}/{displayMax}</p>
+            </div>
+
+            <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-lg p-8 text-center border border-white">
+              <p className="text-lg font-black text-slate-400 uppercase tracking-widest mb-3">การเคลื่อนไหว</p>
+              <p className="text-6xl font-black text-green-600 tabular-nums">{moves}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Game Area */}
       {showDemo ? (
-        <div className="w-full max-w-2xl">
-          <div className="card text-center mb-8 border-4 border-success-400 bg-success-50">
-            <h2 className="text-3xl font-bold text-success-600 mb-4">📖 ตัวอย่างการเล่น</h2>
-            <p className="text-lg text-primary-600 mb-6">
+        <div className="w-full max-w-4xl">
+          <div className="card text-center mb-8 border-6 border-success-500 bg-success-50 py-16 px-12">
+            <h2 className="text-5xl font-black text-success-600 mb-6">📖 ตัวอย่างการเล่น</h2>
+            <p className="text-3xl text-primary-600 mb-12">
               {demoStep === 0 && 'กำลังเตรียมตัวอย่าง...'}
               {demoStep === 1 && 'ขั้นตอนที่ 1: กดปุ่มเพื่อเปิดการ์ด'}
               {demoStep === 2 && 'ขั้นตอนที่ 2: กดปุ่มที่สองเพื่อหาคู่'}
@@ -316,12 +332,12 @@ export default function ColorMatchingGame() {
               {demoStep === 4 && 'ตัวอย่างจบแล้ว! คุณพร้อมเล่นเกมจริงแล้วหรือ?'}
             </p>
 
-            <div className="grid grid-cols-4 gap-2 mb-6 auto-rows-max">
+            <div className="grid grid-cols-4 gap-6 mb-12 auto-rows-max justify-center px-4">
               {cards.slice(0, 4).map((card) => (
                 <button
                   key={card.id}
                   disabled={true}
-                  className={`aspect-square rounded-2xl text-3xl font-bold transition-all duration-300 ${
+                  className={`w-32 h-32 rounded-3xl text-5xl font-bold transition-all duration-300 ${
                     flippedCards.includes(card.id)
                       ? 'bg-white text-center flex items-center justify-center'
                       : 'bg-gradient-to-br from-primary-400 to-primary-600'
@@ -329,7 +345,7 @@ export default function ColorMatchingGame() {
                 >
                   {flippedCards.includes(card.id) ? (
                     <div
-                      className="w-full h-full flex items-center justify-center rounded-2xl"
+                      className="w-full h-full flex items-center justify-center rounded-3xl"
                       style={{ backgroundColor: card.color }}
                     />
                   ) : (
@@ -339,12 +355,12 @@ export default function ColorMatchingGame() {
               ))}
             </div>
 
-            <div className="flex gap-4">
-              <button onClick={closeDemo} className="btn-secondary flex-1">
+            <div className="flex gap-6">
+              <button onClick={closeDemo} className="btn-secondary flex-1 py-6 text-2xl font-black">
                 ปิด
               </button>
               {demoStep === 4 && (
-                <button onClick={() => { closeDemo(); startPreview(difficulty) }} className="btn-primary flex-1">
+                <button onClick={() => { closeDemo(); startPreview(difficulty) }} className="btn-primary flex-1 py-6 text-2xl font-black">
                   เริ่มเล่นเลย!
                 </button>
               )}
@@ -352,14 +368,47 @@ export default function ColorMatchingGame() {
           </div>
         </div>
       ) : !gameStarted && !previewing ? (
-        <div className="w-full max-w-2xl">
-          <div className="card text-center mb-8">
-            <h2 className="text-4xl font-bold text-primary-700 mb-6">ยินดีต้อนรับ!</h2>
-            <p className="text-2xl text-primary-600 mb-4">ระดับปัจจุบัน: {difficulty}</p>
-            <p className="text-lg text-primary-600 mb-6">กดปุ่มเริ่มเพื่อเริ่มระดับนี้</p>
+        <div className="w-full max-w-6xl">
+          <div className="card text-center mb-8 py-24 px-16">
+            <h2 className="text-6xl font-black text-primary-700 mb-12">ยินดีต้อนรับ!</h2>
+            <p className="text-4xl text-primary-600 mb-12">
+              จับคู่สีให้ตรงกัน
+            </p>
+
+            <p className="text-2xl text-primary-500 mb-8">เลือกระดับความยาก</p>
+            <div className="flex gap-6 flex-col md:flex-row mb-10 items-center">
+              <button
+                onClick={() => setDifficultyChoice(1)}
+                className={`flex-1 w-full py-8 text-3xl font-black rounded-xl border-2 transition-all ${
+                  difficultyChoice === 1
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-lg scale-[1.02]'
+                    : 'bg-white text-primary-700 border-primary-300 hover:scale-105'
+                }`}
+              >
+                ธรรมดา
+              </button>
+              <button
+                onClick={() => setDifficultyChoice(2)}
+                className={`flex-1 w-full py-8 text-3xl font-black rounded-xl border-2 transition-all ${
+                  difficultyChoice === 2
+                    ? 'bg-cyan-600 text-white border-cyan-500 shadow-lg scale-[1.02]'
+                    : 'bg-white text-primary-700 border-primary-300 hover:scale-105'
+                }`}
+              >
+                ยาก
+              </button>
+            </div>
+
             <div className="flex gap-4">
-              <button onClick={() => startPreview(difficulty)} className="btn-primary flex-1">เริ่มเล่น</button>
-              <button onClick={startDemo} className="btn-secondary flex-1">ดูตัวอย่าง</button>
+              <button
+                onClick={() => difficultyChoice && initializeGame(difficultyChoice)}
+                disabled={difficultyChoice === null}
+                className={`flex-1 py-6 text-2xl font-black rounded-xl ${
+                  difficultyChoice === null ? 'btn-disabled' : 'btn-primary'
+                }`}
+              >
+                เริ่มเล่นเลย
+              </button>
             </div>
           </div>
         </div>
@@ -385,29 +434,22 @@ export default function ColorMatchingGame() {
             
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {difficulty < 5 ? (
+              {difficulty === 1 && (
                 <button
-                  onClick={() => startPreview(difficulty + 1)}
+                  onClick={() => initializeGame(2)}
                   className="btn-primary w-full"
                 >
-                  ระดับถัดไป (ระดับ {difficulty + 1})
-                </button>
-              ) : (
-                <button
-                  onClick={() => startPreview(1)}
-                  className="btn-primary w-full"
-                >
-                  เริ่มใหม่ (ระดับ 1)
+                  ยาก
                 </button>
               )}
 
-              <Link href="/" className="btn-primary w-full text-center">กลับหน้าแรก</Link>
+              <Link href="/welcome" className="btn-primary w-full text-center">กลับหน้าแรก</Link>
             </div>
           </div>
         </div>
       ) : (
-        <div className="w-full max-w-2xl">
-          <div className="grid grid-cols-4 gap-3 mb-8 auto-rows-max">
+        <div className={`w-full ${difficulty === 1 ? 'max-w-4xl' : 'max-w-6xl'}`}>
+          <div className={`grid ${difficulty === 1 ? 'grid-cols-5' : 'grid-cols-7'} gap-3 mb-8 auto-rows-max`}>
             {cards.map((card) => (
               <button
                 key={card.id}
