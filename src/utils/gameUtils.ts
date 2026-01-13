@@ -126,19 +126,19 @@ const OBJECTS_FOR_MEMORY = [
   { label: 'ดอกเดซี่', image: '/memory-images/photo' },
 ]
 
-export const generateSequentialImages = (difficulty: number) => {
+export const generateSequentialImages = (difficulty: number, countOverride?: number) => {
   // สุ่มเฉพาะ emoji เท่านั้น ไม่ใช้รูปภาพ asset
-  const count = Math.min(4 + difficulty, 8)
-  const pool = OBJECTS_FOR_MEMORY.filter(obj => obj.emoji)
-  const selectedObjs = pool.sort(() => Math.random() - 0.5).slice(0, count)
+  const count = countOverride ?? 6;
+  const pool = OBJECTS_FOR_MEMORY.filter(obj => obj.emoji);
+  const selectedObjs = pool.sort(() => Math.random() - 0.5).slice(0, count);
   const selected = selectedObjs.map((obj, index) => ({
     id: `img-${index}`,
     imageUrl: obj.emoji,
     label: obj.label,
     order: index,
     isAsset: false
-  }))
-  return selected
+  }));
+  return selected;
 }
 
 // Animal Sound Game Utilities

@@ -10,21 +10,23 @@ interface MathQuestion {
   id: string
   num1: number
   num2: number
-  operation: '+'
-  correctAnswer: number
-  options: number[]
+  operation: '+' | '-';
+  correctAnswer: number;
+  options: number[];
 }
 
 export default function FastMathGame() {
   // --- 1. เพิ่มตัวแปรเช็ค Mode ---
   const searchParams = useSearchParams();
   const isDailyMode = searchParams.get('mode') === 'daily'; // เช็คว่าเป็นโหมดรายวันไหม
-  const levelFromQuery = parseInt(searchParams.get('level') || '1', 10);
+  // 1 = ง่าย, 2 = ยาก
+  const levelFromQuery = parseInt(searchParams.get('level') || '1', 10) === 2 ? 2 : 1;
 
   const [currentQuestion, setCurrentQuestion] = useState<MathQuestion | null>(null)
   const [score, setScore] = useState(0)
   
   // ใช้ค่าจาก URL เป็นค่าเริ่มต้น
+  // 1 = ง่าย, 2 = ยาก
   const [difficulty, setDifficulty] = useState(levelFromQuery)
   
   const [gameStarted, setGameStarted] = useState(false)
@@ -37,20 +39,93 @@ export default function FastMathGame() {
   const [wrongAnswers, setWrongAnswers] = useState<Array<{question: MathQuestion, selected: number | null}>>([])
 
   // Initialize game
+  // สร้างโจทย์เลขตามระดับ
+  const customGenerateMathQuestion = (level: number): MathQuestion => {
+    if (level === 1) {
+      // ด่านง่าย: สองหลัก, บวก/ลบ, 2 จำนวน (ไม่มีคำตอบติดลบ)
+      const min = 10, max = 99;
+      let num1 = Math.floor(Math.random() * (max - min + 1)) + min;
+      let num2 = Math.floor(Math.random() * (max - min + 1)) + min;
+      let operation = Math.random() < 0.5 ? '+' : '-';
+      // ถ้าเป็นลบ ต้องให้ num1 >= num2 เพื่อไม่ให้ติดลบ
+      if (operation === '-' && num1 < num2) {
+        [num1, num2] = [num2, num1];
+      }
+      // ถ้าเท่ากันและเป็นลบ ให้เปลี่ยนเป็นบวก
+      if (operation === '-' && num1 === num2) {
+        operation = '+';
+      }
+      let correctAnswer = operation === '+' ? num1 + num2 : num1 - num2;
+      // ตัวเลือก
+      const options = [correctAnswer];
+      while (options.length < 4) {
+        let delta = Math.floor(Math.random() * 10) + 1;
+        if (Math.random() < 0.5) delta = -delta;
+        let opt = correctAnswer + delta;
+        if (!options.includes(opt) && opt >= 0) options.push(opt);
+      }
+      // shuffle
+      for (let i = options.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [options[i], options[j]] = [options[j], options[i]];
+      }
+      return {
+        id: Math.random().toString(36).slice(2),
+        num1,
+        num2,
+        operation: operation as '+' | '-',
+        correctAnswer,
+        options,
+      };
+    } else {
+      // ด่านยาก: บวกเลข 3 หรือ 4 จำนวน (แต่ละจำนวน 1 หลัก)
+      const numCount = Math.random() < 0.5 ? 3 : 4;
+      const nums: number[] = [];
+      for (let i = 0; i < numCount; i++) {
+        // สุ่มเลข 1 หลัก (0-9)
+        nums.push(Math.floor(Math.random() * 10));
+      }
+      const correctAnswer = nums.reduce((a, b) => a + b, 0);
+      // ตัวเลือก
+      const options = [correctAnswer];
+      while (options.length < 4) {
+        let delta = Math.floor(Math.random() * 4) + 1;
+        if (Math.random() < 0.5) delta = -delta;
+        let opt = correctAnswer + delta;
+        if (!options.includes(opt) && opt >= 0) options.push(opt);
+      }
+      // shuffle
+      for (let i = options.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [options[i], options[j]] = [options[j], options[i]];
+      }
+      // สำหรับแสดงผล: num1 = ตัวแรก, num2 = ตัวที่สอง, operation = '+'
+      // แต่จะส่ง array ตัวเลขไปใน question ด้วย (ขยาย interface)
+      return {
+        id: Math.random().toString(36).slice(2),
+        num1: nums[0],
+        num2: nums[1],
+        operation: '+',
+        correctAnswer,
+        options,
+        nums,
+      } as MathQuestion & { nums: number[] };
+    }
+  };
+
   const initializeGame = () => {
-    // ใช้ levelFromQuery หรือ difficulty ปัจจุบันในการเริ่มเกม
-    const newQuestion = generateMathQuestion(levelFromQuery)
-    setCurrentQuestion(newQuestion)
-    setScore(0)
-    setGameStarted(true)
-    setGameCompleted(false)
-    setQuestionsAnswered(0)
-    setCorrectAnswers(0)
-    setSelectedAnswer(null)
-    setAnswered(false)
-    setTimeElapsed(0)
-    setWrongAnswers([])
-  }
+    const newQuestion = customGenerateMathQuestion(difficulty);
+    setCurrentQuestion(newQuestion);
+    setScore(0);
+    setGameStarted(true);
+    setGameCompleted(false);
+    setQuestionsAnswered(0);
+    setCorrectAnswers(0);
+    setSelectedAnswer(null);
+    setAnswered(false);
+    setTimeElapsed(0);
+    setWrongAnswers([]);
+  };
 
   // --- 2. Auto Start สำหรับ Daily Mode ---
   useEffect(() => {
@@ -62,11 +137,11 @@ export default function FastMathGame() {
 
   // Load next question
   const loadNextQuestion = () => {
-    const newQuestion = generateMathQuestion(difficulty)
-    setCurrentQuestion(newQuestion)
-    setSelectedAnswer(null)
-    setAnswered(false)
-  }
+    const newQuestion = customGenerateMathQuestion(difficulty);
+    setCurrentQuestion(newQuestion);
+    setSelectedAnswer(null);
+    setAnswered(false);
+  };
 
   // Handle answer
   const handleAnswer = (answer: number) => {
@@ -139,21 +214,11 @@ export default function FastMathGame() {
 
   // Helper แปลงค่าความยากเป็นข้อความ
   const difficultyLabel = (level: number) => {
-    if (level <= 1) return 'ง่าย';
-    if (level >= 5) return 'ยาก';
-    return 'กลาง';
+    return level === 1 ? 'ง่าย' : 'ยาก';
   };
-  // ระดับถัดไป
-  const nextDifficulty = (level: number) => {
-    if (level <= 1) return 3;
-    if (level === 3) return 5;
-    return 5;
-  };
-  const nextDifficultyLabel = (level: number) => {
-    if (level <= 1) return 'กลาง';
-    if (level === 3) return 'ยาก';
-    return '';
-  };
+  // ระดับถัดไป (เหลือแค่สองระดับ)
+  const nextDifficulty = (level: number) => (level === 1 ? 2 : 1);
+  const nextDifficultyLabel = (level: number) => (level === 1 ? 'ยาก' : 'ง่าย');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 p-4 md:p-8 flex flex-col items-center">
@@ -161,19 +226,40 @@ export default function FastMathGame() {
       <div className="w-full max-w-2xl mb-8">
           {/* ซ่อนปุ่มกลับหน้าหลักถ้าเป็น Daily Mode */}
           {!isDailyMode && (
-            <Link
+            gameStarted ? (
+              <button
+                onClick={() => {
+                  setGameStarted(false);
+                  setGameCompleted(false);
+                  setScore(0);
+                  setQuestionsAnswered(0);
+                  setCorrectAnswers(0);
+                  setSelectedAnswer(null);
+                  setAnswered(false);
+                  setTimeElapsed(0);
+                  setWrongAnswers([]);
+                  setCurrentQuestion(null);
+                }}
+                className="text-xl font-bold mb-4 inline-block px-6 py-2 border-4 border-primary-400 bg-white rounded-full shadow-lg text-primary-600 hover:bg-primary-50 hover:border-primary-600 hover:text-primary-800 transition-all duration-150"
+                style={{ boxShadow: '0 4px 16px 0 rgba(59,130,246,0.10)' }}
+              >
+                ← กลับหน้าหลัก
+              </button>
+            ) : (
+              <Link
                 href="/welcome"
                 className="text-xl font-bold mb-4 inline-block px-6 py-2 border-4 border-primary-400 bg-white rounded-full shadow-lg text-primary-600 hover:bg-primary-50 hover:border-primary-600 hover:text-primary-800 transition-all duration-150"
                 style={{ boxShadow: '0 4px 16px 0 rgba(59,130,246,0.10)' }}
-            >
+              >
                 ← กลับหน้าหลัก
-            </Link>
+              </Link>
+            )
           )}
         <h1 className="game-title">🔢 เกมบวกเลข</h1>
       </div>
 
       {/* Game Stats */}
-      {(!gameCompleted) && (
+      {gameStarted && !gameCompleted && (
         <div className="w-full max-w-2xl card mb-8 bg-white">
           <div className="grid grid-cols-4 gap-4 text-center">
             <div className="flex flex-col items-center justify-center min-w-[120px]">
@@ -201,9 +287,26 @@ export default function FastMathGame() {
         <div className="w-full max-w-2xl">
           <div className="card text-center mb-8">
             <h2 className="text-4xl font-bold text-primary-700 mb-6">ยินดีต้อนรับ!</h2>
-            <p className="text-2xl text-primary-600 mb-8">เริ่มเล่นตามระดับที่สุ่มมา</p>
-
-            <button onClick={initializeGame} className="btn-primary w-full">
+            <p className="text-2xl text-primary-600 mb-8">เลือกระดับที่ต้องการเล่น</p>
+            <div className="flex flex-col gap-4 mb-6">
+              <button
+                onClick={() => setDifficulty(1)}
+                className={`btn-primary w-full ${difficulty === 1 ? 'ring-2 ring-primary-400' : ''}`}
+              >
+                เล่นระดับธรรมดา
+              </button>
+              <button
+                onClick={() => setDifficulty(2)}
+                className={`btn-secondary w-full ${difficulty === 2 ? 'ring-2 ring-secondary-400' : ''}`}
+              >
+                เล่นระดับยาก
+              </button>
+            </div>
+            <button
+              onClick={initializeGame}
+              className="btn-success w-full text-2xl py-4"
+              style={{ marginTop: '12px' }}
+            >
               เริ่มเล่น
             </button>
           </div>
@@ -249,20 +352,15 @@ export default function FastMathGame() {
             ) : (
                 // === ปุ่มสำหรับเล่นปกติ ===
                 <div className="flex gap-4 flex-col md:flex-row">
-                    <button onClick={() => initializeGame()} className="btn-primary flex-1">
-                        เล่นอีกครั้ง
-                    </button>
-                    {(difficulty === 1 || difficulty === 3) && (
-                        <button
-                        onClick={() => {
-                            setDifficulty(nextDifficulty(difficulty));
-                            setTimeout(() => initializeGame(), 100);
-                        }}
-                        className="btn-success flex-1"
-                        >
-                        ถัดไป ({nextDifficultyLabel(difficulty)})
-                        </button>
-                    )}
+                  <button
+                    onClick={() => {
+                      setDifficulty(nextDifficulty(difficulty));
+                      setTimeout(() => initializeGame(), 100);
+                    }}
+                    className="btn-success flex-1"
+                  >
+                    ถัดไป ({nextDifficultyLabel(difficulty)})
+                  </button>
                 </div>
             )}
 
@@ -272,7 +370,12 @@ export default function FastMathGame() {
         <div className="w-full max-w-2xl">
           <div className="card text-center mb-8">
             <div className="text-6xl font-bold text-primary-700 mb-8 p-8 bg-primary-100 rounded-2xl">
-              {currentQuestion.num1} {currentQuestion.operation} {currentQuestion.num2} = ?
+              {difficulty === 1
+                ? `${currentQuestion.num1} ${currentQuestion.operation} ${currentQuestion.num2} = ?`
+                : ((currentQuestion as any).nums
+                    ? ((currentQuestion as any).nums as number[]).join(' + ') + ' = ?'
+                    : `${currentQuestion.num1} + ${currentQuestion.num2} = ?`)
+              }
             </div>
 
             <div className="grid grid-cols-2 gap-4">

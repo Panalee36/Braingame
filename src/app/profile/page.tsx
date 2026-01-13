@@ -53,8 +53,6 @@ export default function ProfilePage() {
   const [age, setAge] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   
-  // State สำหรับเปิด/ปิด ดูประวัติ
-  const [expandedGame, setExpandedGame] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -120,9 +118,6 @@ export default function ProfilePage() {
     router.replace('/login');
   }, [router]);
 
-  const toggleHistory = (key: string) => {
-    setExpandedGame(expandedGame === key ? null : key);
-  };
 
   // --- 💡 ปรับปรุง Avatar URL ---
   // ใช้ 'avataaars' ให้ดูเป็นคนมากขึ้น และบังคับให้ยิ้ม (mouth=smile) เสมอ
@@ -211,71 +206,61 @@ export default function ProfilePage() {
 
         <div className="space-y-5">
             {statistics.map((stat) => {
-                const isExpanded = expandedGame === stat.key;
-                const history = gameHistories[stat.key] || [];
-                
-                return (
-                    <div key={stat.key} className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-                        {/* ส่วนหัวของ Card (คลิกเพื่อขยาย) */}
-                        <div 
-                            onClick={() => toggleHistory(stat.key)}
-                            className="p-6 cursor-pointer hover:bg-slate-50 transition-colors flex flex-col md:flex-row justify-between items-center gap-4"
-                        >
-                            <div className="flex items-center gap-5 w-full md:w-auto">
-                                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-3xl shadow-inner">
-                                    {stat.icon}
-                                </div>
-                                <div>
-                                    <h3 className="text-2xl font-bold text-slate-800">{stat.gameType}</h3>
-                                    <p className="text-gray-500 text-lg">เล่นล่าสุด: {stat.lastPlayed}</p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center justify-between w-full md:w-auto gap-8 bg-gray-50 md:bg-transparent p-4 md:p-0 rounded-xl">
-                                <div className="text-center md:text-right">
-                                    <p className="text-sm text-gray-500 font-semibold">คะแนนสูงสุด</p>
-                                    <p className="text-3xl font-black text-blue-600">{stat.highScore}</p>
-                                </div>
-                                <div className={`text-gray-400 text-2xl transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
-                                    ▼
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* ส่วนตารางประวัติ (เลื่อนลงมา) */}
-                        <div className={`transition-all duration-300 ease-in-out bg-slate-50 ${isExpanded ? 'max-h-96 opacity-100 overflow-y-auto' : 'max-h-0 opacity-0 overflow-hidden'}`}>
-                            {history.length > 0 ? (
-                                <table className="w-full text-left border-t border-gray-200">
-                                    <thead className="bg-gray-200 text-gray-600 text-lg">
-                                        <tr>
-                                            <th className="px-6 py-3 font-semibold">วันที่และเวลา</th>
-                                            <th className="px-6 py-3 text-right font-semibold">คะแนนที่ได้</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="text-lg">
-                                        {history.map((item, idx) => (
-                                            <tr key={idx} className="border-b border-gray-100 bg-white hover:bg-blue-50">
-                                                <td className="px-6 py-4 text-slate-700">
-                                                    {new Date(item.date).toLocaleDateString('th-TH', {
-                                                        year: '2-digit', month: 'short', day: 'numeric',
-                                                        hour: '2-digit', minute: '2-digit'
-                                                    })} น.
-                                                </td>
-                                                <td className="px-6 py-4 text-right font-bold text-blue-700">
-                                                    {item.score}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            ) : (
-                                <div className="p-8 text-center text-gray-500 text-lg">
-                                    ยังไม่เคยเล่นเกมนี้เลย ลองไปเล่นดูนะครับ!
-                                </div>
-                            )}
-                        </div>
+              const history = gameHistories[stat.key] || [];
+              return (
+                <div key={stat.key} className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+                  {/* ส่วนหัวของ Card (compact) */}
+                  <div className="p-3 md:p-4 flex flex-col md:flex-row justify-between items-center gap-3">
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                      <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-2xl shadow-inner">
+                        {stat.icon}
+                      </div>
+                      <div>
+                        <h3 className="text-lg md:text-xl font-bold text-slate-800">{stat.gameType}</h3>
+                        <p className="text-gray-500 text-sm md:text-base">เล่นล่าสุด: {stat.lastPlayed}</p>
+                      </div>
                     </div>
-                );
+                    <div className="flex items-center justify-between w-full md:w-auto gap-4 bg-gray-50 md:bg-transparent p-2 md:p-0 rounded-xl">
+                      <div className="text-center md:text-right">
+                        <p className="text-xs md:text-sm text-gray-500 font-semibold">คะแนนสูงสุด</p>
+                        <p className="text-xl md:text-2xl font-black text-blue-600">{stat.highScore}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {/* ตารางประวัติ (แสดงตลอด, compact) */}
+                  <div className="bg-slate-50 max-h-60 overflow-y-auto">
+                    {history.length > 0 ? (
+                      <table className="w-full text-left border-t border-gray-200">
+                        <thead className="bg-gray-200 text-gray-600 text-base md:text-lg">
+                          <tr>
+                            <th className="px-4 py-2 font-semibold">วันที่และเวลา</th>
+                            <th className="px-4 py-2 text-right font-semibold">คะแนนที่ได้</th>
+                          </tr>
+                        </thead>
+                        <tbody className="text-base md:text-lg">
+                          {history.map((item, idx) => (
+                            <tr key={idx} className="border-b border-gray-100 bg-white hover:bg-blue-50">
+                              <td className="px-4 py-2 text-slate-700">
+                                {new Date(item.date).toLocaleDateString('th-TH', {
+                                  year: '2-digit', month: 'short', day: 'numeric',
+                                  hour: '2-digit', minute: '2-digit'
+                                })} น.
+                              </td>
+                              <td className="px-4 py-2 text-right font-bold text-blue-700">
+                                {item.score}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="p-4 text-center text-gray-500 text-base">
+                        ยังไม่เคยเล่นเกมนี้เลย ลองไปเล่นดูนะครับ!
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
             })}
         </div>
       </div>

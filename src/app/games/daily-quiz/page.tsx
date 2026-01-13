@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import confetti from 'canvas-confetti'
 
@@ -25,60 +26,76 @@ export default function DailyQuizPage() {
   const HISTORY_KEY = 'daily_quiz_completion_history';
 
   // --- 2. เริ่มต้น: โหลดข้อมูล ---
-  useEffect(() => {
-    const todayStr = new Date().toDateString();
-
-    try {
-        // โหลดประวัติ
-        const savedHistory = localStorage.getItem(HISTORY_KEY);
-        let currentHistory: string[] = [];
-        if (savedHistory) {
-            currentHistory = JSON.parse(savedHistory);
-            setHistory(currentHistory);
-        }
-
-        // คำนวณ Streak
-        const sCount = calculateStreak(currentHistory, todayStr);
-        setStreakCount(sCount);
-
-        // โหลด Progress วันนี้
-        const savedData = localStorage.getItem(STORAGE_KEY);
-        if (savedData) {
-            const parsed = JSON.parse(savedData);
-            if (parsed.date === todayStr) {
-                setGames(parsed.games);
-                setStep(parsed.currentStep || 0);
-                setIsLoaded(true);
-                // ถ้าโหลดมาแล้วพบว่าจบเกมแล้ว (Step 4) ให้จุดพลุโชว์อีกรอบเบาๆ
-                if (parsed.currentStep === 4) {
-                    setTimeout(() => runSideCannons(), 500);
-                }
-                return; 
+    useEffect(() => {
+        const todayStr = new Date().toDateString();
+        try {
+            // โหลดประวัติ
+            const savedHistory = localStorage.getItem(HISTORY_KEY);
+            let currentHistory: string[] = [];
+            if (savedHistory) {
+                currentHistory = JSON.parse(savedHistory);
+                setHistory(currentHistory);
             }
+
+            // คำนวณ Streak
+            const sCount = calculateStreak(currentHistory, todayStr);
+            setStreakCount(sCount);
+
+            // โหลด Progress วันนี้ (ถ้ามีแล้วใช้ชุดเดิม)
+            const savedData = localStorage.getItem(STORAGE_KEY);
+            if (savedData) {
+                const parsed = JSON.parse(savedData);
+                if (parsed.date === todayStr) {
+                    setGames(parsed.games);
+                    setStep(parsed.currentStep || 0);
+                    setIsLoaded(true);
+                    // ถ้าโหลดมาแล้วพบว่าจบเกมแล้ว (Step 4) ให้จุดพลุโชว์อีกรอบเบาๆ
+                    if (parsed.currentStep === 4) {
+                        setTimeout(() => runSideCannons(), 500);
+                    }
+                    return;
+                }
+            }
+
+            // สุ่มเกมใหม่ (วันละครั้งเท่านั้น)
+            // ใช้ seed เป็นวันที่ เพื่อให้สุ่มเหมือนเดิมทั้งวัน
+            function seededShuffle(array: any[], seed: string) {
+                let arr = [...array];
+                let s = 0;
+                for (let i = 0; i < seed.length; i++) s += seed.charCodeAt(i);
+                for (let i = arr.length - 1; i > 0; i--) {
+                    s = (s * 9301 + 49297) % 233280;
+                    const j = Math.floor((s / 233280) * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+                return arr;
+            }
+            const shuffled = seededShuffle(ALL_GAMES, todayStr);
+            // สุ่ม level ด้วย seed เช่นกัน
+            function seededLevel(idx: number, seed: string) {
+                let s = 0;
+                for (let i = 0; i < seed.length; i++) s += seed.charCodeAt(i) * (idx + 1);
+                return (s % 3) + 1;
+            }
+            const newDailyGames = shuffled.slice(0, 3).map((game, idx) => ({
+                ...game,
+                level: seededLevel(idx, todayStr),
+            }));
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                date: todayStr,
+                games: newDailyGames,
+                currentStep: 0
+            }));
+            setGames(newDailyGames);
+            setStep(0);
+            setIsLoaded(true);
+        } catch (error) {
+            console.error("Error loading:", error);
+            setGames(ALL_GAMES.slice(0, 3));
+            setIsLoaded(true);
         }
-
-        // สุ่มเกมใหม่
-        const shuffled = [...ALL_GAMES].sort(() => 0.5 - Math.random());
-        const newDailyGames = shuffled.slice(0, 3).map(game => ({
-            ...game,
-            level: Math.floor(Math.random() * 3) + 1, 
-        }));
-
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            date: todayStr,
-            games: newDailyGames,
-            currentStep: 0
-        }));
-        setGames(newDailyGames);
-        setStep(0);
-        setIsLoaded(true);
-
-    } catch (error) {
-        console.error("Error loading:", error);
-        setGames(ALL_GAMES.slice(0, 3)); 
-        setIsLoaded(true);
-    }
-  }, []);
+    }, []);
 
   // --- ฟังก์ชันคำนวณ Streak ---
   const calculateStreak = (historyList: string[], todayStr: string) => {
@@ -146,46 +163,53 @@ export default function DailyQuizPage() {
   };
 
   // --- 4. บันทึกความคืบหน้า ---
-  const updateProgress = (newStep: number) => {
-    const todayStr = new Date().toDateString();
-    
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        date: todayStr,
-        games: games,
-        currentStep: newStep
-    }));
-
-    if (newStep === 4) {
-        const newHistory = [...history];
-        if (!newHistory.includes(todayStr)) {
-            newHistory.push(todayStr);
-            setHistory(newHistory);
-            localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
-            
-            const newStreak = calculateStreak(newHistory, todayStr);
-            setStreakCount(newStreak);
-            
-            // 🔥 จุดพลุชุดใหญ่เมื่อจบเกม!
-            runFireworks();
+    const updateProgress = (newStep: number) => {
+        const todayStr = new Date().toDateString();
+        // sync games/step จาก localStorage เป็นหลัก
+        let gamesToUse = games;
+        const savedData = localStorage.getItem(STORAGE_KEY);
+        if (savedData) {
+            const parsed = JSON.parse(savedData);
+            if (parsed.date === todayStr) {
+                gamesToUse = parsed.games;
+            }
         }
-    }
-  };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            date: todayStr,
+            games: gamesToUse,
+            currentStep: newStep
+        }));
+        setStep(newStep);
+        setGames(gamesToUse);
+
+        if (newStep === 4) {
+            const newHistory = [...history];
+            if (!newHistory.includes(todayStr)) {
+                newHistory.push(todayStr);
+                setHistory(newHistory);
+                localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
+                const newStreak = calculateStreak(newHistory, todayStr);
+                setStreakCount(newStreak);
+                runFireworks();
+            }
+        }
+    };
 
   // --- 5. จัดการปุ่ม ---
-  const handleOpenGame = () => {
-    if (step > 0 && step <= 3) {
-        const currentGame = games[step - 1];
-        window.open(`/games/${currentGame.id}?level=${currentGame.level}&mode=daily`, '_blank');
-        setHasPlayedCurrent(true);
-    }
-  };
+    const router = useRouter();
+    const handleOpenGame = () => {
+        if (step > 0 && step <= 3) {
+            const currentGame = games[step - 1];
+            router.push(`/games/${currentGame.id}?level=${currentGame.level}&mode=daily`);
+            setHasPlayedCurrent(true);
+        }
+    };
 
-  const handleNextStep = () => {
-    const nextStep = step + 1;
-    setStep(nextStep);
-    setHasPlayedCurrent(false); 
-    updateProgress(nextStep); 
-  };
+    const handleNextStep = () => {
+        const nextStep = step + 1;
+        updateProgress(nextStep);
+        setHasPlayedCurrent(false);
+    };
 
   // --- Component: 7-Day Streak Bar ---
   const renderStreakBar = () => {

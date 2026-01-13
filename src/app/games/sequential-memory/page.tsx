@@ -45,8 +45,9 @@ export default function SequentialMemoryGame() {
 
   // Initialize game
   const initializeGame = () => {
-    // ใช้ difficulty ปัจจุบัน (ซึ่งรับมาจาก query หรือ state)
-    const newImagesRaw = generateSequentialImages(difficulty);
+    // ธรรมดา 6 รูป, ยาก 10 รูป
+    const imageCount = difficulty === 2 ? 9 : 6;
+    const newImagesRaw = generateSequentialImages(difficulty, imageCount);
     // Ensure imageUrl is always string, and has label/order
     const newImages: SequentialImageItem[] = newImagesRaw.map(img => ({
       id: img.id,
@@ -155,12 +156,32 @@ export default function SequentialMemoryGame() {
       {/* Header */}
       <div className="w-full max-w-4xl mb-8">
         {!isDailyMode && (
-            <Link
-            href="/welcome"
-            className="text-xl font-bold mb-4 inline-block px-6 py-2 border-4 border-primary-400 bg-white rounded-full shadow-lg text-primary-600 hover:bg-primary-50 hover:border-primary-600 hover:text-primary-800 transition-all duration-150"
+          (gameStarted || gameCompleted) ? (
+            <button
+              onClick={() => {
+                setGameStarted(false);
+                setGameCompleted(false);
+                setScore(0);
+                setSelectedOrder([]);
+                setShowImages(true);
+                setTimeElapsed(0);
+                setDisplayTimer(15);
+                setShowDisplayTimer(false);
+                setImages([]);
+                setShuffledImages([]);
+              }}
+              className="text-xl font-bold mb-4 inline-block px-6 py-2 border-4 border-primary-400 bg-white rounded-full shadow-lg text-primary-600 hover:bg-primary-50 hover:border-primary-600 hover:text-primary-800 transition-all duration-150"
             >
-            ← กลับหน้าแรก
+              ← กลับหน้าแรก
+            </button>
+          ) : (
+            <Link
+              href="/welcome"
+              className="text-xl font-bold mb-4 inline-block px-6 py-2 border-4 border-primary-400 bg-white rounded-full shadow-lg text-primary-600 hover:bg-primary-50 hover:border-primary-600 hover:text-primary-800 transition-all duration-150"
+            >
+              ← กลับหน้าแรก
             </Link>
+          )
         )}
         <h1 className="game-title">🖼️ เกมจำลำดับภาพ</h1>
       </div>
@@ -170,9 +191,23 @@ export default function SequentialMemoryGame() {
           <div className="card text-center mb-8">
             <h2 className="text-4xl font-bold text-primary-700 mb-6">ยินดีต้อนรับ!</h2>
             <p className="text-2xl text-primary-600 mb-8">
-              ดูรูปภาพ 15 วินาที แล้วจำลำดับของภาพ
+              เลือกระดับที่ต้องการเล่น
             </p>
-            <button onClick={initializeGame} className="btn-primary w-full">
+            <div className="flex flex-col gap-4 mb-6">
+              <button
+                onClick={() => setDifficulty(1)}
+                className={`btn-primary w-full ${difficulty === 1 ? 'ring-2 ring-primary-400' : ''}`}
+              >
+                ธรรมดา
+              </button>
+              <button
+                onClick={() => setDifficulty(2)}
+                className={`btn-secondary w-full ${difficulty === 2 ? 'ring-2 ring-secondary-400' : ''}`}
+              >
+                ยาก
+              </button>
+            </div>
+            <button onClick={initializeGame} className="btn-success w-full text-2xl py-4">
               เริ่มเล่น
             </button>
           </div>
@@ -203,26 +238,17 @@ export default function SequentialMemoryGame() {
           ) : (
             // ปุ่มสำหรับโหมดปกติ
             <div className="flex gap-4 flex-col md:flex-row justify-center">
-                <button onClick={() => initializeGame()} className="btn-primary flex-1 max-w-xs">
-                เล่นอีกครั้ง
-                </button>
-                {difficulty < 5 && (
+              {difficulty === 1 && (
                 <button
-                    onClick={() => {
-                    setDifficulty((prev) => prev + 1);
+                  onClick={() => {
+                    setDifficulty(2);
                     setTimeout(() => initializeGame(), 100);
-                    }}
-                    className="btn-success flex-1 max-w-xs"
+                  }}
+                  className="btn-success flex-1 max-w-xs"
                 >
-                    ถัดไป (ด่าน {difficulty + 1})
+                  ถัดไป (ยาก)
                 </button>
-                )}
-                <Link
-                href="/welcome"
-                className="btn-secondary flex-1 max-w-xs text-center"
-                >
-                กลับหน้าแรก
-                </Link>
+              )}
             </div>
           )}
         </div>
@@ -328,7 +354,7 @@ export default function SequentialMemoryGame() {
                   onClick={handleCheckAnswer}
                   disabled={selectedOrder.filter(Boolean).length !== images.length}
                 >
-                  ตรวจคำตอบ
+                  ส่งคำตอบ
                 </button>
               </div>
 
