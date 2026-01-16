@@ -26,10 +26,17 @@ const COLORS = [
   { name: 'ส้ม', hex: '#F97316', displayName: 'Orange' },
   { name: 'ชมพู', hex: '#EC4899', displayName: 'Pink' },
   { name: 'ฟ้า', hex: '#06B6D4', displayName: 'Cyan' },
+  { name: 'น้ำตาล', hex: '#92400E', displayName: 'Brown' },
+  { name: 'เทา', hex: '#6B7280', displayName: 'Gray' },
+  { name: 'แข็งชะตา', hex: '#10B981', displayName: 'Emerald' },
+  { name: 'กรม', hex: '#1F2937', displayName: 'Dark' },
+  { name: 'ชมพูขาด', hex: '#F472B6', displayName: 'Rose' },
+  { name: 'ลิ่มทอง', hex: '#D97706', displayName: 'Amber' },
 ]
 
 export const generateColorCards = (difficulty: number) => {
-  const pairCount = Math.min(4 + difficulty, 8)
+  // difficulty 1 (Normal) = 10 pairs (20 cards), difficulty 2 (Hard) = 14 pairs (28 cards)
+  const pairCount = difficulty === 1 ? 10 : 14
   const selectedColors = COLORS.slice(0, pairCount)
   const cards = []
   let id = 0
@@ -204,33 +211,48 @@ const VOCABULARY_WORDS = [
   'เครื่องบิน',
   'รถไฟ',
   'เรือ',
+  'แม่น้ำ',
+  'หิมะ',
+  'ฝน',
+  'ฟ้าผ่า',
+  'สวน',
+  'สนามหญ้า',
 ]
 
 export const generateVocabularyWords = (difficulty: number) => {
-  const count = Math.min(3 + difficulty, 6)
-  const selected = VOCABULARY_WORDS.slice(0, count)
-    .sort(() => Math.random() - 0.5)
-    .map((word, index) => ({
-      id: `word-${index}`,
-      word,
-      imageUrl: undefined,
-    }))
+  const count = difficulty > 1 ? 24 : 18
+  const pool = [...VOCABULARY_WORDS].sort(() => Math.random() - 0.5)
+  const selected = pool.slice(0, Math.min(count, pool.length)).map((word, index) => ({
+    id: `word-${index}`,
+    word,
+    imageUrl: undefined,
+  }))
 
   return selected
 }
 
 export const generateVocabularyOptions = (words: any[], difficulty: number) => {
   const options = [...words]
-  const totalOptions = Math.min(6 + difficulty, 10)
+  // Prevent infinite loop: we can only have as many unique options
+  // as the vocabulary pool provides. If the requested total exceeds
+  // the pool size, cap to the pool size.
+  const totalOptions = Math.min(24, VOCABULARY_WORDS.length)
 
   while (options.length < totalOptions) {
     const candidate = VOCABULARY_WORDS[Math.floor(Math.random() * VOCABULARY_WORDS.length)]
+    // Keep options unique until we reach the capped total
     if (!options.find((w) => w.word === candidate)) {
       options.push({
         id: `option-${options.length}`,
         word: candidate,
         imageUrl: undefined,
       })
+    } else {
+      // If all unique words are already included, break to avoid a tight loop
+      // (this happens when words already cover the entire vocabulary pool)
+      if (new Set(options.map((w) => w.word)).size >= VOCABULARY_WORDS.length) {
+        break
+      }
     }
   }
 

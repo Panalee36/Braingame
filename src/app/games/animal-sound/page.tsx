@@ -1,10 +1,9 @@
-"use client"
+'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-// ตรวจสอบ path ของ utils ให้ถูกต้องตามโปรเจกต์ของคุณ
-import { generateAnimalSounds, calculateScore, getTimeLimit, saveGameHistory } from '@/utils/gameUtils'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { generateAnimalSounds } from '@/utils/gameUtils'
 
 interface AnimalSound {
   id: string
@@ -14,34 +13,36 @@ interface AnimalSound {
 }
 
 export default function AnimalSoundGame() {
-  // --- 1. รับค่าจาก URL (Daily Mode Logic) ---
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const isDailyMode = searchParams.get('mode') === 'daily'; // เช็คโหมดรายวัน
-  const levelFromQuery = parseInt(searchParams.get('level') || '1', 10);
+  const isDailyMode = searchParams.get('mode') === 'daily';
+  const dailyStep = searchParams.get('dailyStep');
 
   const [currentAnimal, setCurrentAnimal] = useState<AnimalSound | null>(null)
   const [options, setOptions] = useState<AnimalSound[]>([])
-  const [score, setScore] = useState(0)
-  
-  // ใช้ค่าจาก URL เป็นค่าเริ่มต้น
-  const [difficulty, setDifficulty] = useState(levelFromQuery);
-  
   const [gameStarted, setGameStarted] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
-  const [timeElapsed, setTimeElapsed] = useState(0)
   const [totalTime, setTotalTime] = useState(0)
   const [questionsAnswered, setQuestionsAnswered] = useState(0)
   const [correctAnswers, setCorrectAnswers] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
   const [answered, setAnswered] = useState(false)
   const [soundPlayed, setSoundPlayed] = useState(false)
+  const [showDemo, setShowDemo] = useState(false)
+  const [demoStep, setDemoStep] = useState(0)
 
-  // Initialize game
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const maxQuestions = 10
+
   const initializeGame = () => {
     const { currentAnimal: animal, options: opts } = generateAnimalSounds()
     setCurrentAnimal(animal)
     setOptions(opts)
-    setScore(0)
     setGameStarted(true)
     setGameCompleted(false)
     setQuestionsAnswered(0)
@@ -49,242 +50,148 @@ export default function AnimalSoundGame() {
     setSelectedAnswer(null)
     setAnswered(false)
     setSoundPlayed(false)
-    setTimeElapsed(0)
     setTotalTime(0)
   }
 
-  // --- 2. Auto Start สำหรับ Daily Mode ---
-  useEffect(() => {
-    // ถ้าเป็น Daily Mode และเกมยังไม่เริ่ม ให้เริ่มเลย
-    if (isDailyMode && !gameStarted && !gameCompleted) {
-        initializeGame();
-    }
-  }, [isDailyMode]); // ทำงานเมื่อค่า isDailyMode เปลี่ยน หรือโหลดหน้า
-
-  // Load next question
   const loadNextQuestion = () => {
     const { currentAnimal: animal, options: opts } = generateAnimalSounds()
     setCurrentAnimal(animal)
     setOptions(opts)
     setSelectedAnswer(null)
     setAnswered(false)
-    setSoundPlayed(false) // รีเซ็ตสถานะการเล่นเสียงเมื่อขึ้นข้อใหม่
   }
 
-  // Handle answer
   const handleAnswer = (animalId: string) => {
     if (answered) return
-
     setSelectedAnswer(animalId)
     setAnswered(true)
-    setQuestionsAnswered(questionsAnswered + 1)
-
-    if (animalId === currentAnimal?.id) {
-      setCorrectAnswers(correctAnswers + 1)
-      setScore(score + 10 + difficulty * 2)
-    }
-
-    setTimeout(() => {
-        const limit = getTimeLimit('animal-sound', difficulty)
-        if (questionsAnswered + 1 < limit) {
-        loadNextQuestion()
-      } else {
-        setGameCompleted(true);
-        // Save only if logged in
-        const username = localStorage.getItem('profile_username');
-        if (username) {
-          saveGameHistory(`animal-sound_${username}`, score);
-          try {
-            const key = `stat_animal-sound_${username}`;
-            const raw = localStorage.getItem(key);
-            let prev = { gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-' };
-            if (raw) prev = JSON.parse(raw);
-            const newGamesPlayed = prev.gamesPlayed + 1;
-            const newAverageScore = Math.round((prev.averageScore * prev.gamesPlayed + score) / newGamesPlayed);
-            const newHighScore = Math.max(prev.highScore, score);
-            const newLastPlayed = new Date().toISOString().slice(0, 10);
-            localStorage.setItem(key, JSON.stringify({ gamesPlayed: newGamesPlayed, averageScore: newAverageScore, highScore: newHighScore, lastPlayed: newLastPlayed }));
-          } catch {}
-        }
+    setQuestionsAnswered((prev) => {
+      const next = prev + 1
+      if (animalId === currentAnimal?.id) {
+        setCorrectAnswers((c) => c + 1)
       }
-    }, 1500)
+      setTimeout(() => {
+        if (next < maxQuestions) {
+          loadNextQuestion()
+        } else {
+          setGameCompleted(true)
+        }
+      }, 1500)
+      return next
+    })
   }
 
-  // Timer effect
   useEffect(() => {
     if (!gameStarted || gameCompleted) return
-
-    const timer = setInterval(() => {
-        setTimeElapsed((prev: number) => prev + 1)
-        setTotalTime((prev: number) => prev + 1)
-    }, 1000)
-
+    const timer = setInterval(() => { setTotalTime((prev: number) => prev + 1) }, 1000)
     return () => clearInterval(timer)
   }, [gameStarted, gameCompleted])
 
-  // Play sound effect
-  const playSound = () => {
-    setSoundPlayed(true)
-    // In a real app, you would play actual sound files here
-    // ตัวอย่าง: new Audio(currentAnimal.soundUrl).play();
-  }
+  const playSound = () => { setSoundPlayed(true) }
+
+  useEffect(() => {
+    if (isDailyMode && !gameStarted && !gameCompleted) {
+        initializeGame();
+    }
+  }, [isDailyMode]);
+
+  useEffect(() => {
+    if (showDemo && demoStep === 0) {
+      const { currentAnimal: animal, options: opts } = generateAnimalSounds()
+      setCurrentAnimal(animal)
+      setOptions(opts)
+      setDemoStep(1)
+      setSoundPlayed(false)
+      setSelectedAnswer(null)
+      setAnswered(false)
+    }
+  }, [showDemo, demoStep])
 
   const successRate = questionsAnswered > 0 ? ((correctAnswers / questionsAnswered) * 100).toFixed(1) : '0'
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 p-4 md:p-8 flex flex-col items-center">
-      {/* Header */}
-      <div className="w-full max-w-2xl mb-8">
-          {/* ซ่อนปุ่มกลับหน้าหลักถ้าเป็น Daily Mode */}
-          {!isDailyMode && (
-            <Link href="/welcome" className="text-xl font-bold text-primary-600 hover:text-primary-700 mb-4 inline-block">
-            ← กลับหน้าแรก
-            </Link>
-          )}
-        <h1 className="game-title">🐕 เกมฟังเสียงสัตว์</h1>
-      </div>
+  if (isDailyMode && !gameStarted && !gameCompleted) {
+    return <div className="p-10 text-center text-blue-600 font-bold animate-pulse">กำลังเตรียมเกม...</div>;
+  }
 
-      {/* Game Stats */}
-      <div className="w-full max-w-2xl card mb-8 bg-white">
-        <div className="grid grid-cols-4 gap-4 text-center">
-          <div className="flex flex-col items-center justify-center min-w-[120px]">
-            <p className="text-lg text-primary-500 mb-2">คะแนน</p>
-            <span className="score-display text-4xl md:text-5xl">{score}</span>
-          </div>
-          <div className="flex flex-col items-center justify-center min-w-[120px]">
-            <p className="text-lg text-primary-500 mb-2">เวลา</p>
-              <span className="score-display text-4xl md:text-5xl">{timeElapsed}s</span>
-          </div>
-          <div className="flex flex-col items-center justify-center min-w-[120px]">
-            <p className="text-lg text-primary-500 mb-2">จำได้</p>
-            <span className="score-display text-4xl md:text-5xl leading-tight">{correctAnswers}/{questionsAnswered}</span>
-          </div>
-          <div className="flex flex-col items-center justify-center min-w-[120px]">
-            <p className="text-lg text-primary-500 mb-2">ระดับ</p>
-            <span className="score-display text-4xl md:text-5xl">{difficulty}</span>
-          </div>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 flex flex-col">
+      <div className="bg-white/80 backdrop-blur-sm border-b border-primary-100 px-6 py-4 md:py-6">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          {!isDailyMode ? (
+              <Link href="/welcome" className="btn-primary px-6 py-2 text-lg md:text-xl whitespace-nowrap">← กลับหน้าแรก</Link>
+          ) : (
+              <div className="px-5 py-2 bg-yellow-100 text-yellow-700 rounded-xl font-bold border border-yellow-200 shadow-sm">📅 ภารกิจประจำวัน</div>
+          )}
+          <div className="flex items-center gap-2"><span className="text-3xl md:text-4xl">🎮</span><h1 className="text-2xl md:text-3xl font-bold text-primary-700">เกมฟังเสียงสัตว์</h1></div>
+          <button onClick={() => { setDemoStep(0); setCurrentAnimal(null); setOptions([]); setSoundPlayed(false); setSelectedAnswer(null); setAnswered(false); setShowDemo(true); }} className="flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full bg-yellow-300 hover:bg-yellow-400 active:bg-yellow-500 transition-all shadow-lg hover:shadow-xl text-2xl md:text-3xl" title="ดูตัวอย่างเกม">💡</button>
         </div>
       </div>
 
-      {/* Game Area */}
-      {!gameStarted ? (
-        <div className="w-full max-w-2xl">
-          <div className="card text-center mb-8">
-            <h2 className="text-4xl font-bold text-primary-700 mb-6">ยินดีต้อนรับ!</h2>
-            <p className="text-2xl text-primary-600 mb-8">
-              ฟังเสียงสัตว์ แล้วเลือกรูปที่ตรงกัน
-            </p>
+      {gameStarted && !gameCompleted && !showDemo && (
+        <div className="w-full max-w-4xl mx-auto px-4 py-6">
+          <div className="card grid grid-cols-2 gap-4 text-center">
+            <div><p className="text-lg text-primary-500 mb-2">เวลา</p><p className="score-display">{formatTime(totalTime)}</p></div>
+            <div><p className="text-lg text-primary-500 mb-2">ตอบถูก</p><p className="score-display">{correctAnswers}/{questionsAnswered}</p></div>
+          </div>
+        </div>
+      )}
 
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              {[1, 2, 3, 4, 5].map((level) => (
-                <button
-                  key={level}
-                  onClick={() => setDifficulty(level)}
-                  className={`py-4 px-3 text-2xl font-bold rounded-xl transition-all ${
-                    difficulty === level
-                      ? 'btn-success'
-                      : 'btn-secondary'
-                  }`}
-                >
-                  {level}
-                </button>
+      <div className="flex-1 flex items-center justify-center px-4 py-8 md:py-12">
+        {showDemo && demoStep > 0 && currentAnimal && options.length > 0 ? (
+          <div className="w-full max-w-3xl">
+            <div className="card text-center border-4 border-yellow-300 bg-yellow-50">
+              <div className="flex items-center justify-between mb-6"><h3 className="text-2xl font-bold text-yellow-700">🎬 ตัวอย่างการเล่น</h3><button onClick={() => setShowDemo(false)} className="text-3xl text-yellow-700 hover:text-yellow-900 font-bold px-4 py-2 hover:bg-yellow-200 rounded-lg transition-colors">✕</button></div>
+              <p className="text-xl text-primary-600 mb-4 leading-relaxed">🎮 เกมนี้จะให้คุณฟังเสียงสัตว์ แล้วเลือกรูปสัตว์ที่ตรงกับเสียง<br/>ให้ลองฟังและเลือกรูปเพื่อท่องจำเสียงและรูปสัตว์ต่างๆ</p>
+              <div className="flex gap-4 flex-col md:flex-row"><button onClick={() => { setShowDemo(false); setDemoStep(0); setCurrentAnimal(null); setOptions([]); setSoundPlayed(false); setSelectedAnswer(null); setAnswered(false); initializeGame(); }} className="btn-primary flex-1">เริ่มเล่น</button><button onClick={() => setShowDemo(false)} className="btn-secondary flex-1">ปิด</button></div>
+            </div>
+          </div>
+        ) : !gameStarted ? (
+          <div className="w-full max-w-5xl">
+            <div className="card text-center py-32 md:py-48 px-12 md:px-16">
+              <h2 className="text-7xl md:text-8xl font-bold text-primary-700 mb-8">ยินดีต้อนรับ!</h2>
+              <button onClick={initializeGame} className="bg-cyan-500 hover:bg-cyan-600 active:bg-cyan-700 text-white text-3xl md:text-4xl font-bold py-6 md:py-8 px-16 md:px-20 rounded-3xl shadow-lg hover:shadow-xl transition-all w-full">เริ่มเล่น</button>
+            </div>
+          </div>
+        ) : gameCompleted ? (
+          <div className="w-full max-w-3xl">
+            <div className="card text-center">
+              <h2 className="text-5xl font-bold text-success-600 mb-6">🎉 เสร็จสิ้น!</h2>
+              <div className="grid grid-cols-2 gap-6 mb-8">
+                <div className="bg-warning-50 p-6 rounded-xl"><p className="text-lg text-warning-600 mb-2">ความถูกต้อง</p><p className="text-5xl font-bold text-warning-700">{successRate}%</p></div>
+                <div className="bg-success-50 p-6 rounded-xl"><p className="text-lg text-success-600 mb-2">จำนวนสัตว์</p><p className="text-5xl font-bold text-success-700">{questionsAnswered}</p></div>
+                <div className="bg-blue-50 p-6 rounded-xl col-span-2"><p className="text-lg text-blue-600 mb-2">ใช้เวลา</p><p className="text-5xl font-bold text-blue-700">{formatTime(totalTime)}</p></div>
+              </div>
+              
+              {isDailyMode ? (
+                 <button 
+                   onClick={() => router.push(`/games/daily-quiz?action=next&playedStep=${dailyStep}`)} 
+                   className="w-full py-4 bg-green-500 hover:bg-green-600 text-white text-2xl font-bold rounded-xl shadow-lg transition-transform hover:scale-105"
+                 >
+                   ✅ ผ่านด่าน (ไปต่อ)
+                 </button>
+              ) : (
+                 <div className="flex gap-4 flex-col md:flex-row">
+                    <button onClick={() => initializeGame()} className="btn-primary flex-1">เล่นอีกครั้ง</button>
+                    <Link href="/" className="btn-secondary flex-1 text-center">กลับหน้าแรก</Link>
+                 </div>
+              )}
+            </div>
+          </div>
+        ) : currentAnimal && options.length > 0 ? (
+          <div className="w-full max-w-3xl">
+            <div className="card text-center mb-8">
+              <p className="text-2xl text-primary-600 mb-6">ฟังเสียง และเลือกสัตว์</p>
+              <button onClick={playSound} className={`btn-primary w-full text-3xl mb-8 ${soundPlayed ? 'scale-95' : ''}`}>🔊 {soundPlayed ? 'เล่นเสียง' : 'เล่นเสียง'}</button>
+              <p className="text-xl text-primary-600 mb-6">{soundPlayed ? 'เลือกรูปสัตว์ที่ตรงกับเสียง' : 'กดปุ่มเพื่อเล่นเสียง'}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {options.map((option) => (
+                <button key={option.id} onClick={() => handleAnswer(option.id)} disabled={answered || !soundPlayed} className={`py-8 px-4 text-6xl rounded-2xl transition-all ${selectedAnswer === option.id ? option.id === currentAnimal.id ? 'btn-success scale-110' : 'btn-error scale-110' : 'btn-secondary hover:scale-105'} ${answered || !soundPlayed ? 'opacity-70' : ''}`}>{option.imageUrl}</button>
               ))}
             </div>
-
-            <button onClick={initializeGame} className="btn-primary w-full">
-              เริ่มเล่น
-            </button>
           </div>
-        </div>
-      ) : gameCompleted ? (
-        // --- 3. ส่วนแสดงผลตอนจบเกม (ปรับปรุงใหม่) ---
-        <div className="w-full max-w-2xl animate-fade-in">
-          <div className="card text-center">
-            <h2 className="text-5xl font-bold text-success-600 mb-6">🎉 เสร็จสิ้น!</h2>
-
-            <div className="grid grid-cols-2 gap-6 mb-8">
-              <div className="bg-primary-50 p-6 rounded-xl">
-                <p className="text-lg text-primary-500 mb-2">คะแนนสุดท้าย</p>
-                <p className="text-5xl font-bold text-primary-700">{score}</p>
-              </div>
-              <div className="bg-warning-50 p-6 rounded-xl">
-                <p className="text-lg text-warning-600 mb-2">ความถูกต้อง</p>
-                <p className="text-5xl font-bold text-warning-700">{successRate}%</p>
-              </div>
-              <div className="bg-success-50 p-6 rounded-xl">
-                <p className="text-lg text-success-600 mb-2">จำนวนสัตว์</p>
-                <p className="text-5xl font-bold text-success-700">{questionsAnswered}</p>
-              </div>
-              <div className="bg-blue-50 p-6 rounded-xl">
-                <p className="text-lg text-blue-600 mb-2">ใช้เวลา</p>
-                <p className="text-5xl font-bold text-blue-700">{totalTime}s</p>
-              </div>
-            </div>
-
-            {/* ปุ่มควบคุมตอนจบเกม */}
-            {isDailyMode ? (
-                // === ปุ่มสำหรับ Daily Mode ===
-                <button 
-                  onClick={() => window.close()} 
-                  className="w-full py-4 bg-red-500 hover:bg-red-600 text-white text-2xl font-bold rounded-xl shadow-lg transition-transform hover:scale-105"
-                >
-                  ❌ ปิดหน้าต่าง (รับรางวัล)
-                </button>
-            ) : (
-                // === ปุ่มสำหรับเล่นปกติ ===
-                <div className="flex gap-4 flex-col md:flex-row">
-                  <button onClick={() => initializeGame()} className="btn-primary flex-1">
-                    เล่นอีกครั้ง
-                  </button>
-                  <Link href="/" className="btn-secondary flex-1 text-center flex items-center justify-center">
-                    กลับหน้าแรก
-                  </Link>
-                </div>
-            )}
-          </div>
-        </div>
-      ) : currentAnimal && options.length > 0 ? (
-        <div className="w-full max-w-2xl">
-          <div className="card text-center mb-8">
-            <p className="text-2xl text-primary-600 mb-6">ฟังเสียง และเลือกสัตว์</p>
-
-            <button
-              onClick={playSound}
-              className={`btn-primary w-full text-3xl mb-8 ${soundPlayed ? 'scale-95' : ''}`}
-            >
-              🔊 {soundPlayed ? 'เล่นเสียงอีกครั้ง' : 'เล่นเสียง'}
-            </button>
-
-            <p className="text-xl text-primary-600 mb-6">
-              {soundPlayed ? 'เลือกรูปสัตว์ที่ตรงกับเสียง' : 'กดปุ่มเพื่อเล่นเสียง'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {options.map((option) => (
-              <button
-                key={option.id}
-                onClick={() => handleAnswer(option.id)}
-                disabled={answered || !soundPlayed}
-                className={`py-8 px-4 text-6xl rounded-2xl transition-all ${
-                  selectedAnswer === option.id
-                    ? option.id === currentAnimal.id
-                      ? 'btn-success scale-110'
-                      : 'btn-error scale-110'
-                    : 'btn-secondary hover:scale-105'
-                } ${answered || !soundPlayed ? 'opacity-70' : ''}`}
-              >
-                {option.imageUrl}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {/* Footer */}
-      <footer className="text-center text-lg text-primary-600 mt-8">
-        <p>เล่นเกมสม่ำเสมอเพื่อกระตุ้นสมองของคุณ</p>
-      </footer>
+        ) : null}
+      </div>
     </div>
   )
 }

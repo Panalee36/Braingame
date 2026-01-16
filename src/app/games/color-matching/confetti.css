@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .animate-confetti {
+    animation: confetti-pop 0.7s cubic-bezier(.36,1.01,.32,1) both;
+  }
+  @keyframes confetti-pop {
+    0% { opacity:0; transform: scale(0.2) translateY(20px);}
+    60% { opacity:1; transform: scale(1.2) translateY(-10px);}
+    100% { opacity:0; transform: scale(0.7) translateY(-30px);}
+  }
+}
