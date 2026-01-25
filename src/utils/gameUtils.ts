@@ -17,68 +17,60 @@ export function addMemoryImage(label: string, filename: string) {
 // Utility functions for game logic
 
 // Color Matching Game Utilities
-const COLORS = [
-  { name: 'แดง', hex: '#EF4444', displayName: 'Red' },
-  { name: 'เขียว', hex: '#22C55E', displayName: 'Green' },
-  { name: 'เหลือง', hex: '#FBBF24', displayName: 'Yellow' },
-  { name: 'น้ำเงิน', hex: '#3B82F6', displayName: 'Blue' },
-  { name: 'ม่วง', hex: '#A855F7', displayName: 'Purple' },
-  { name: 'ส้ม', hex: '#F97316', displayName: 'Orange' },
-  { name: 'ชมพู', hex: '#EC4899', displayName: 'Pink' },
-  { name: 'ฟ้า', hex: '#06B6D4', displayName: 'Cyan' },
-  { name: 'น้ำตาล', hex: '#92400E', displayName: 'Brown' },
-  { name: 'เทา', hex: '#6B7280', displayName: 'Gray' },
-  { name: 'แข็งชะตา', hex: '#10B981', displayName: 'Emerald' },
-  { name: 'กรม', hex: '#1F2937', displayName: 'Dark' },
-  { name: 'ชมพูขาด', hex: '#F472B6', displayName: 'Rose' },
-  { name: 'ลิ่มทอง', hex: '#D97706', displayName: 'Amber' },
-]
-
 export const generateColorCards = (difficulty: number) => {
-  // difficulty 1 (Normal) = 10 pairs (20 cards), difficulty 2 (Hard) = 14 pairs (28 cards)
-  const pairCount = difficulty === 1 ? 10 : 14
-  const selectedColors = COLORS.slice(0, pairCount)
-  const cards = []
-  let id = 0
+  // กำหนดสีพื้นฐานและชื่อ
+  const COLORS = [
+    { color: '#f87171', name: 'แดง' },
+    { color: '#fbbf24', name: 'เหลือง' },
+    { color: '#34d399', name: 'เขียว' },
+    { color: '#60a5fa', name: 'ฟ้า' },
+    { color: '#a78bfa', name: 'ม่วง' },
+    { color: '#f472b6', name: 'ชมพู' },
+    { color: '#facc15', name: 'ทอง' },
+    { color: '#fb7185', name: 'แดงเข้ม' },
+    { color: '#38bdf8', name: 'ฟ้าอ่อน' },
+    { color: '#4ade80', name: 'เขียวอ่อน' },
+    { color: '#fcd34d', name: 'เหลืองอ่อน' },
+    { color: '#a3e635', name: 'เขียวมะนาว' },
+    { color: '#e879f9', name: 'ม่วงอ่อน' },
+    { color: '#fdba74', name: 'ส้มอ่อน' },
+    { color: '#6ee7b7', name: 'เขียวมิ้นท์' },
+    { color: '#818cf8', name: 'น้ำเงินอ่อน' },
+    { color: '#fca5a5', name: 'ชมพูอ่อน' },
+    { color: '#fde68a', name: 'เหลืองทอง' },
+    { color: '#bbf7d0', name: 'เขียวพาสเทล' },
+    { color: '#f9a8d4', name: 'ชมพูพาสเทล' },
+  ];
+  // จำนวนคู่ไพ่ตามระดับ (10 คู่สำหรับธรรมดา, 15 คู่สำหรับยาก)
+  const pairs = difficulty === 2 ? 15 : 10;
+  const selected = COLORS.slice(0, pairs);
+  // สร้างไพ่ 2 ใบต่อสี
+  const cards = selected.flatMap((c, i) => [
+    { id: `c${i}-a`, color: c.color, colorName: c.name },
+    { id: `c${i}-b`, color: c.color, colorName: c.name },
+  ]);
+  // สุ่มลำดับ
+  return cards.sort(() => Math.random() - 0.5);
+};
 
-  selectedColors.forEach((color) => {
-    for (let i = 0; i < 2; i++) {
-      cards.push({
-        id: `color-${id++}`,
-        color: color.hex,
-        displayName: color.name,
-        isFlipped: false,
-        isMatched: false,
-      })
-    }
-  })
-
-  return cards.sort(() => Math.random() - 0.5)
-}
-
-// Math Game Utilities
 export const generateMathQuestion = (difficulty: number) => {
-  const level = Math.min(difficulty, 5)
-    let min = 1, max = 10;
-    if (level === 2) { min = 10; max = 50; }
-    if (level === 3) { min = 20; max = 100; }
-    if (level === 4) { min = 50; max = 200; }
-    if (level === 5) { min = 10; max = 99; } // ด่าน 5 ใช้เลขหลักสิบ
-    const num1 = Math.floor(Math.random() * (max - min + 1)) + min;
-    const num2 = Math.floor(Math.random() * (max - min + 1)) + min;
-
-  const correctAnswer = num1 + num2
-  const options = [correctAnswer]
-
-  // Generate wrong answers
+  const level = Math.min(difficulty, 5);
+  let min = 1, max = 10;
+  if (level === 2) { min = 10; max = 50; }
+  if (level === 3) { min = 20; max = 100; }
+  if (level === 4) { min = 50; max = 200; }
+  if (level === 5) { min = 10; max = 99; }
+  const num1 = Math.floor(Math.random() * (max - min + 1)) + min;
+  const num2 = Math.floor(Math.random() * (max - min + 1)) + min;
+  const correctAnswer = num1 + num2;
+  const options = [correctAnswer];
   while (options.length < 4) {
-      const wrongAnswer = correctAnswer + (Math.random() - 0.5) * (max * 0.5)
-    const rounded = Math.floor(wrongAnswer)
+    const wrongAnswer = correctAnswer + (Math.random() - 0.5) * (max * 0.5);
+    const rounded = Math.floor(wrongAnswer);
     if (rounded > 0 && !options.includes(rounded)) {
-      options.push(rounded)
+      options.push(rounded);
     }
   }
-
   return {
     id: `math-${Date.now()}`,
     num1,
@@ -86,7 +78,7 @@ export const generateMathQuestion = (difficulty: number) => {
     operation: '+' as const,
     correctAnswer,
     options: options.sort(() => Math.random() - 0.5),
-  }
+  };
 }
 
 // Sequential Memory Game Utilities
@@ -130,35 +122,111 @@ const OBJECTS_FOR_MEMORY = [
   { label: 'ส้มจริง', image: '/memory-images/orange.jpg' },
   { label: 'กล้วยจริง', image: '/memory-images/banana.jpg' },
   { label: 'ภาพถ่าย', image: '/memory-images/photo' },
-  { label: 'ดอกเดซี่', image: '/memory-images/photo' },
+  { label: 'ทานตะวัน', image: '/memory-images/sunflower.jpg' },
 ]
 
+// รายชื่อไฟล์รูปจริงใน memory-images/sunflower/ (ตัวอย่าง UUID)
+const SUNFLOWER_IMAGES = [
+  'daisy',
+  'frangipani',
+  'kaewmankorn',
+  'sapraros',
+  'apple',
+  'bird',
+  'blueberry',
+  'butterfly',
+  'cat',
+  'east side',
+  'elephant',
+  'fish',
+  'grape',
+  'hibiscus',
+  'jasmins',
+  'leaf',
+  'light blue',
+  'lotus',
+  'mangosteen',
+  'matermelon',
+  'monkey',
+  'moon',
+  'orange',
+  'peacock',
+  'pomelo',
+  'rabbit',
+  'rose',
+  'sheep',
+  'sun',
+  'tige',
+  'tomato',
+  'tree',
+];
+
 export const generateSequentialImages = (difficulty: number, countOverride?: number) => {
-  // สุ่มเฉพาะ emoji เท่านั้น ไม่ใช้รูปภาพ asset
+  // ใช้รูปจริงทั้งหมดจาก memory-images/sunflower/
   const count = countOverride ?? 6;
-  const pool = OBJECTS_FOR_MEMORY.filter(obj => obj.emoji);
-  const selectedObjs = pool.sort(() => Math.random() - 0.5).slice(0, count);
-  const selected = selectedObjs.map((obj, index) => ({
+  const selectedFiles = SUNFLOWER_IMAGES.sort(() => Math.random() - 0.5).slice(0, count);
+  const selected = selectedFiles.map((filename, index) => ({
     id: `img-${index}`,
-    imageUrl: obj.emoji,
-    label: obj.label,
+    imageUrl: `/memory-images/sunflower/${filename}.jpg`,
+    label: filename,
     order: index,
-    isAsset: false
+    isAsset: true
   }));
   return selected;
 }
 
 // Animal Sound Game Utilities
-const ANIMALS = [
-  { name: 'หมา', sound: '🐕', label: 'หมา' },
-  { name: 'แมว', sound: '🐱', label: 'แมว' },
-  { name: 'วัว', sound: '🐄', label: 'วัว' },
-  { name: 'ไก่', sound: '🐔', label: 'ไก่' },
-  { name: 'เป็ด', sound: '🦆', label: 'เป็ด' },
-  { name: 'อีกาน', sound: '🐷', label: 'หมู' },
-  { name: 'แกะ', sound: '🐑', label: 'แกะ' },
-  { name: 'ม้า', sound: '🐴', label: 'ม้า' },
-]
+
+export const ANIMALS = [
+  {
+    name: 'หมา',
+    label: 'หมา',
+    image: '/images/animal pictures/dog.jpg',
+    sound: '/sounds/animal-sound/dog.mp3',
+  },
+  {
+    name: 'แมว',
+    label: 'แมว',
+    image: '/images/animal pictures/cat.jpg',
+    sound: '/sounds/animal-sound/cat.mp3',
+  },
+  {
+    name: 'วัว',
+    label: 'วัว',
+    image: '/images/animal pictures/cow.jpg',
+    sound: '/sounds/animal-sound/cow.mp3',
+  },
+  {
+    name: 'ไก่',
+    label: 'ไก่',
+    image: '/images/animal pictures/chicken.jpg',
+    sound: '/sounds/animal-sound/chicken.mp3',
+  },
+  {
+    name: 'เป็ด',
+    label: 'เป็ด',
+    image: '/images/animal pictures/duck.jpg',
+    sound: '/sounds/animal-sound/duck.mp3',
+  },
+  {
+    name: 'หมู',
+    label: 'หมู',
+    image: '/images/animal pictures/pig.jpg',
+    sound: '/sounds/animal-sound/pig.mp3',
+  },
+  {
+    name: 'แกะ',
+    label: 'แกะ',
+    image: '/images/animal pictures/sheep.jpg',
+    sound: '/sounds/animal-sound/sheep.mp3',
+  },
+  {
+    name: 'ม้า',
+    label: 'ม้า',
+    image: '/images/animal pictures/horse.jpg',
+    sound: '/sounds/animal-sound/horse.mp3',
+  },
+];
 
 export const generateAnimalSounds = () => {
   const animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)]
@@ -176,7 +244,7 @@ export const generateAnimalSounds = () => {
       id: `animal-${Date.now()}`,
       name: animal.name,
       soundUrl: animal.sound,
-      imageUrl: animal.sound,
+      imageUrl: animal.image,
     },
     options: options
       .sort(() => Math.random() - 0.5)
@@ -184,7 +252,7 @@ export const generateAnimalSounds = () => {
         id: `option-${i}`,
         name: a.label,
         soundUrl: a.sound,
-        imageUrl: a.sound,
+        imageUrl: a.image,
       })),
   }
 }
@@ -219,8 +287,8 @@ const VOCABULARY_WORDS = [
   'สนามหญ้า',
 ]
 
-export const generateVocabularyWords = (difficulty: number) => {
-  const count = difficulty > 1 ? 24 : 18
+export const generateVocabularyWords = (difficulty: number, customCount?: number) => {
+  const count = customCount ?? (difficulty > 1 ? 24 : 18)
   const pool = [...VOCABULARY_WORDS].sort(() => Math.random() - 0.5)
   const selected = pool.slice(0, Math.min(count, pool.length)).map((word, index) => ({
     id: `word-${index}`,

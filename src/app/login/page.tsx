@@ -44,9 +44,16 @@ export default function LoginPage() {
 
       if (res.ok && data.success) {
         const user = data.user || {};
+        
+        // 1. เก็บข้อมูล Profile
         localStorage.setItem('profile_username', user.username || usernameTrimmed);
         localStorage.setItem('profile_age', user.age ? String(user.age) : '');
         localStorage.setItem('anonId', user.anonId || `anon_${usernameTrimmed}`);
+
+        // ✅ 2. (เพิ่มใหม่) เก็บ userId เพื่อใช้ผูกกับประวัติการเล่นใน Database
+        if (user.id) {
+            localStorage.setItem('userId', user.id);
+        }
 
         if (data.token) {
             document.cookie = `token=${data.token}; path=/; max-age=86400; secure; HttpOnly=true; SameSite=Lax`;
