@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useTTS } from '@/hooks/useTTS' // ✅ 1. เรียกใช้ Hook เสียง
+import { useTTS } from '@/hooks/useTTS'
 
-// Cartoon pink bubble background theme (เหมือนเดิม)
+// ... (ส่วน ExactCartoonTheme และ Interface คงเดิม ไม่ต้องแก้) ...
 const ExactCartoonTheme = () => (
   <div
     className="absolute inset-0 z-0 overflow-hidden"
@@ -55,19 +55,24 @@ export default function FastMathGame() {
   const levelFromQuery = parseInt(searchParams.get('level') || '1', 10);
   const dailyStep = searchParams.get('dailyStep');
 
-  // ✅ 2. เพิ่มตัวแปรสำหรับระบบเสียง
   const { speak, cancel } = useTTS();
   const [hasInteracted, setHasInteracted] = useState(false);
+  // ✅ แทรกโค้ดนี้ลงไปบรรทัดถัดมาได้เลยครับ
+  useEffect(() => {
+    if (isDailyMode) {
+        setHasInteracted(true);
+    }
+  }, [isDailyMode]);
   const hasSpokenWelcome = useRef(false);
-  // เพิ่ม state สำหรับปิดเสียงบรรยาย (TTS)
   const [soundDisabled, setSoundDisabled] = useState(false);
 
-  // ✅ เพิ่ม State สำหรับกันการบันทึกซ้ำ
-  const [isSaving, setIsSaving] = useState(false);
+  // ไม่ต้องใช้ isSaving ใน State แล้ว เพราะเราจะเช็คตอนจบเกมทีเดียว
+  // const [isSaving, setIsSaving] = useState(false); 
 
   const [currentQuestion, setCurrentQuestion] = useState<MathQuestion | null>(null)
   const [score, setScore] = useState(0)
   const [difficulty, setDifficulty] = useState(levelFromQuery)
+  const [selectedLevel, setSelectedLevel] = useState<number | null>(null)
   
   const [gameStarted, setGameStarted] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
@@ -87,45 +92,30 @@ export default function FastMathGame() {
   const demoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const applauseSoundRef = useRef<HTMLAudioElement | null>(null)
 
-  // เตรียมเสียงปรบมือสำหรับหน้าสรุปคะแนน
+  // ... (useEffect เสียงปรบมือ คงเดิม) ...
   useEffect(() => {
     const applause = new Audio()
     applause.src = '/sounds/Soundeffect/Applause.mp3'
     applause.preload = 'auto'
     applause.volume = 1.0
-    applause.addEventListener('canplaythrough', () => {
-      console.log('🎵 เสียงปรบมือโหลดสำเร็จ')
-    })
-    applause.addEventListener('error', (e) => {
-      console.error('❌ เสียงปรบมือโหลดข้อผิดพลาด:', e)
-    })
+    applause.addEventListener('canplaythrough', () => console.log('🎵 เสียงปรบมือโหลดสำเร็จ'))
+    applause.addEventListener('error', (e) => console.error('❌ เสียงปรบมือโหลดข้อผิดพลาด:', e))
     applauseSoundRef.current = applause
-    console.log('🔧 สร้าง Audio element สำหรับเสียงปรบมือ')
-    return () => {
-      if (applauseSoundRef.current) {
-        applauseSoundRef.current.pause()
-      }
-    }
+    return () => { if (applauseSoundRef.current) applauseSoundRef.current.pause() }
   }, [])
 
-  // -------------------------------------------------------------
-  // 🔊 3. ระบบนักพากย์ (Narrator Logic) - ทำงานเงียบๆ
-  // -------------------------------------------------------------
-
-  // 3.1 เสียงต้อนรับ
+  // ... (useEffect ระบบเสียง 3 ตัว คงเดิม) ...
   useEffect(() => {
     if (hasInteracted && !hasSpokenWelcome.current && !gameStarted && !isDailyMode && !showDemo && !soundDisabled) {
        setTimeout(() => {
-         speak("ยินดีต้อนรับสู่เกมบวกเลขครับ... กติกาคือ ให้เลือกคำตอบที่ถูกต้องให้ไวที่สุดครับ... เลือกความยากเพื่อเริ่มเล่นได้เลย");
+         speak("ยินดีต้อนรับสู่เกมบวกเลขครับ... กติกาคือ ให้เลือกคำตอบที่ถูกต้องให้ไวที่สุดครับ... เลือกระดับความยากเพื่อเริ่มเล่นได้เลย");
          hasSpokenWelcome.current = true;
        }, 1000);
     }
   }, [hasInteracted, gameStarted, isDailyMode, showDemo, speak, soundDisabled]);
 
-  // 3.2 อ่านโจทย์ (เมื่อโจทย์เปลี่ยน และเกมเริ่ม)
-    useEffect(() => {
+  useEffect(() => {
     if (gameStarted && !gameCompleted && currentQuestion && !answered && !soundDisabled) {
-      // หน่วงเวลาเล็กน้อยให้หน้าจอเปลี่ยนก่อนค่อยพูด
       const timer = setTimeout(() => {
         let text = "";
         if (difficulty === 1) {
@@ -138,46 +128,21 @@ export default function FastMathGame() {
       }, 500);
       return () => clearTimeout(timer);
     }
-    }, [currentQuestion, gameStarted, gameCompleted, answered, difficulty, speak, soundDisabled]);
+  }, [currentQuestion, gameStarted, gameCompleted, answered, difficulty, speak, soundDisabled]);
 
-  // 3.3 เสียงจบเกม (ปิดการใช้งาน - ใช้แค่เสียง Applause แทน)
-  // useEffect(() => {
-  //   if (gameCompleted && !soundDisabled) {
-  //      speak(`จบเกมแล้วครับ... คุณทำคะแนนได้ ${score} คะแนน... ตอบถูก ${correctAnswers} ข้อครับ`);
-  //   }
-  // }, [gameCompleted, score, correctAnswers, speak, soundDisabled]);
-
-  // 3.3.1 เสียงปรบมือที่หน้าสรุปคะแนน
   useEffect(() => {
     if (gameCompleted) {
-      console.log('🎮 เกมจบแล้ว - เตรียมเล่นเสียงปรบมือ')
-      // หน่วงเวลาให้ UI โหลดเสร็จก่อนเล่นเสียง
       const timer = setTimeout(() => {
-        console.log('🔍 ตรวจสอบ applauseSoundRef:', applauseSoundRef.current ? 'มีค่า' : 'ไม่มีค่า')
         if (applauseSoundRef.current) {
-          console.log('▶️ เล่นเสียงปรบมือ... src:', applauseSoundRef.current.src)
           applauseSoundRef.current.currentTime = 0
-          applauseSoundRef.current.volume = 1.0
-          const playPromise = applauseSoundRef.current.play()
-          if (playPromise !== undefined) {
-            playPromise.then(() => {
-              console.log('✅ เสียงปรบมือเล่นสำเร็จ')
-            }).catch((error) => {
-              console.error('❌ เสียงปรบมือเล่นไม่สำเร็จ:', error.name, error.message)
-            })
-          } else {
-            console.warn('⚠️ play() ไม่ return Promise')
-          }
-        } else {
-          console.warn('⚠️ applauseSoundRef.current เป็น null หรือ undefined')
+          applauseSoundRef.current.play().catch((error) => console.error('❌', error))
         }
       }, 800)
       return () => clearTimeout(timer)
     }
   }, [gameCompleted])
 
-  // -------------------------------------------------------------
-
+  // ... (customGenerateMathQuestion คงเดิม) ...
   const customGenerateMathQuestion = (level: number): MathQuestion => {
     if (level === 1) {
       const min = 10, max = 99;
@@ -212,8 +177,7 @@ export default function FastMathGame() {
   };
 
   const initializeGame = React.useCallback((levelOverride?: number) => {
-    cancel(); // หยุดเสียงเก่า
-    setIsSaving(false); // ✅ Reset สถานะการบันทึก
+    cancel(); 
     if (answerTimeoutRef.current) clearTimeout(answerTimeoutRef.current)
     const levelToUse = levelOverride || difficulty;
     setDifficulty(levelToUse);
@@ -237,11 +201,11 @@ export default function FastMathGame() {
     }
   }, [isDailyMode, gameStarted, gameCompleted, initializeGame, levelFromQuery]);
 
+  // ... (startDemo และ closeDemo คงเดิม) ...
   const startDemo = () => {
-    cancel(); // หยุดเสียง TTS ปัจจุบันก่อนเริ่มอธิบายตัวอย่าง
+    cancel(); 
     setShowDemo(true)
     setDemoStep(0)
-    // สร้างโจทย์ตัวอย่างที่ง่าย
     const demoQuestion: MathQuestion = {
       id: 'demo',
       num1: 15,
@@ -260,22 +224,21 @@ export default function FastMathGame() {
     setTimeRemaining(120)
     setTotalTime(0)
     
-    // ลำดับการแสดงตัวอย่าง (ช้าเหมาะสมสำหรับผู้สูงอายุ)
     demoTimeoutRef.current = setTimeout(() => {
-      setDemoStep(1) // แสดงโจทย์
+      setDemoStep(1)
       if (!soundDisabled) speak("ตัวอย่างการเล่น... โจทย์คือ 15 บวก 7 เท่ากับเท่าไหร่ครับ")
       
       demoTimeoutRef.current = setTimeout(() => {
-        setDemoStep(2) // เน้นตัวเลือก
+        setDemoStep(2)
         if (!soundDisabled) speak("มองหาคำตอบที่ถูกต้องในตัวเลือก... 15 บวก 7 เท่ากับ 22 ครับ")
         
         demoTimeoutRef.current = setTimeout(() => {
-          setSelectedAnswer(22) // เลือกคำตอบ
+          setSelectedAnswer(22)
           setDemoStep(3)
           if (!soundDisabled) speak("ถูกต้อง... เมื่อตอบถูก จะได้รับคะแนน")
           
           demoTimeoutRef.current = setTimeout(() => {
-            setDemoStep(4) // สรุป
+            setDemoStep(4)
             if (!soundDisabled) speak("เล่นไปเรื่อยๆ จนครบ 10 ข้อ... เข้าใจแล้วใช่ไหมครับ... กดเริ่มเล่นได้เลย")
           }, 5000)
         }, 5000)
@@ -284,7 +247,7 @@ export default function FastMathGame() {
   }
 
   const closeDemo = () => {
-    cancel(); // หยุดเสียง TTS ทันที
+    cancel();
     setShowDemo(false);
     if (demoTimeoutRef.current) clearTimeout(demoTimeoutRef.current);
   }
@@ -297,58 +260,72 @@ export default function FastMathGame() {
     setAnswered(false);
   };
 
+  // ✅ ฟังก์ชันช่วยบันทึกคะแนน (แยกออกมาเพื่อความชัวร์) - ไม่บันทึกถ้าเป็น daily mode
+  const saveScoreToDB = (finalScore: number) => {
+    if (isDailyMode) {
+      console.log("ℹ️ โหมด Daily Quiz - ไม่บันทึกประวัติการเล่น");
+      return;
+    }
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      console.log("💾 กำลังบันทึกคะแนน...", finalScore);
+      fetch('/api/game/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId,
+          gameType: 'fast-math',
+          score: finalScore
+        })
+      })
+      .then(res => res.json())
+      .then(data => console.log('✅ Score saved successfully:', data))
+      .catch(err => console.error('❌ Error saving score:', err));
+    } else {
+        console.warn("⚠️ ไม่พบ User ID ในเครื่อง (อาจจะยังไม่ได้ Login หรือเล่นแบบ Guest)");
+    }
+  };
+
   const MAX_QUESTIONS = 10;
 
+  // ✅ แก้ไขฟังก์ชัน handleAnswer ให้คำนวณคะแนนและบันทึกทันทีที่จบเกม
   const handleAnswer = (answer: number) => {
     if (answered) return
     setSelectedAnswer(answer)
     setAnswered(true)
-    setQuestionsAnswered((q) => q + 1)
     
-    // Feedback เสียง (สั้นๆ)
+    // 1. คำนวณคะแนนใหม่ทันที (ไม่รอ State)
+    let newScore = score;
+    let newCorrectAnswers = correctAnswers;
+
     if (answer === currentQuestion?.correctAnswer) {
-      // speak("ถูกต้อง"); // (เปิดใช้ได้ถ้าต้องการ)
-      setCorrectAnswers((c) => c + 1)
-      setScore((s) => s + 1) 
-    } else {
-      // speak("ผิดครับ"); // (เปิดใช้ได้ถ้าต้องการ)
+      newScore = score + 1;
+      newCorrectAnswers = correctAnswers + 1;
+      setScore(newScore); // อัปเดต State เพื่อแสดงผล
+      setCorrectAnswers(newCorrectAnswers);
     }
+
+    setQuestionsAnswered((q) => q + 1)
 
     if (answerTimeoutRef.current) clearTimeout(answerTimeoutRef.current)
     answerTimeoutRef.current = setTimeout(() => {
       answerTimeoutRef.current = null
       if (gameCompletedRef.current) return
+      
+      // 2. เช็คว่าจบเกมหรือยัง
       if (questionsAnswered + 1 >= MAX_QUESTIONS) {
         gameCompletedRef.current = true
         setGameCompleted(true)
+        
+        // 3. ✅ บันทึกคะแนนที่คำนวณเสร็จแล้วทันที! (ไม่ต้องรอ useEffect)
+        saveScoreToDB(newScore); 
       } else {
         loadNextQuestion()
       }
     }, 1500)
   }
 
-  // ✅ เพิ่ม useEffect สำหรับบันทึกคะแนนเมื่อจบเกม
-  useEffect(() => {
-    if (gameCompleted && !isSaving) {
-      setIsSaving(true);
-      const userId = localStorage.getItem('userId');
-      if (userId) {
-        fetch('/api/game/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: userId,
-            gameType: 'fast-math',
-            score: score // ใช้ score เป็นคะแนน
-          })
-        })
-        .then(res => res.json())
-        .then(data => console.log('Score saved:', data))
-        .catch(err => console.error('Error saving score:', err));
-      }
-    }
-  }, [gameCompleted, isSaving, score]);
-
+  // ... (ส่วน useEffect ของ Timer คงเดิม) ...
   useEffect(() => {
     if (!gameStarted || gameCompleted) return;
     const timer = setInterval(() => {
@@ -366,17 +343,16 @@ export default function FastMathGame() {
     }
   }, [])
 
-  const successRate = questionsAnswered > 0 ? ((correctAnswers / questionsAnswered) * 100).toFixed(1) : '0'
+  const successRate = questionsAnswered > 0 ? ((correctAnswers / questionsAnswered) * 100).toFixed(1) : '0';
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
   const nextDifficulty = (level: number) => (level === 1 ? 2 : 1);
   const nextDifficultyLabel = (level: number) => (level === 1 ? 'ยาก' : 'ง่าย');
 
-  // ✅ 4. หน้าจอปลดล็อกเสียง (จำเป็นต้องใส่ไว้ก่อน UI หลัก)
+  // ... (ส่วน UI ทั้งหมดคงเดิม 100% ตั้งแต่บรรทัดนี้ลงไป) ...
   if (!hasInteracted) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#ffe7ba] p-4 relative overflow-hidden">
@@ -415,7 +391,6 @@ export default function FastMathGame() {
     );
   }
 
-  // UI เดิม (เหมือนเดิม 100%)
   if (isDailyMode && !gameStarted && !gameCompleted) {
     return (
       <div className="min-h-screen flex items-center justify-center text-2xl text-blue-600 font-bold animate-pulse relative overflow-hidden">
@@ -428,20 +403,18 @@ export default function FastMathGame() {
   return (
     <div className="min-h-screen font-sans flex flex-col items-center relative overflow-hidden p-4 md:p-6">
       <ExactCartoonTheme />
-      {/* ปุ่มดูตัวอย่างการเล่นถูกย้ายไปอยู่ข้างปุ่มฟังคำแนะนำด้านล่าง */}
-
       <div className="relative z-10 w-full flex flex-col items-center flex-1">
-        {/* --- Header Bar --- */}
         {(gameStarted || (isDailyMode && gameCompleted)) && !showDemo && (
           <div className="w-full max-w-5xl bg-gradient-to-r from-[#f8fbff] to-[#eef3ff] rounded-[2.5rem] shadow-xl px-10 py-5 mb-7 flex items-center justify-between sticky top-4 z-50 border border-[#e0e7ef] min-h-[80px]">
             {!isDailyMode ? (
               <button
                 onClick={() => {
-                  cancel(); // หยุดเสียง TTS ทันที
+                  cancel();
                   setGameStarted(false);
                   setGameCompleted(false);
                   setScore(0);
                   setCurrentQuestion(null);
+                  setSelectedLevel(null);
                 }}
                 className="flex items-center gap-2 px-7 py-3 rounded-full bg-[#e9d5ff] text-purple-700 font-bold text-xl shadow hover:bg-[#d8b4fe] transition-all"
               >
@@ -457,7 +430,6 @@ export default function FastMathGame() {
           </div>
         )}
 
-        {/* --- Stats Bar --- */}
         {gameStarted && !gameCompleted && !showDemo && (
           <div className="flex flex-col items-center w-full max-w-2xl mb-6 animate-fade-in relative z-10">
             <div className="grid grid-cols-2 gap-4 md:gap-8 w-full mb-4">
@@ -470,7 +442,6 @@ export default function FastMathGame() {
                 <p className="text-2xl font-black text-green-600 tabular-nums drop-shadow">{questionsAnswered}<span className="text-2xl font-black text-green-600 tabular-nums opacity-70"> / {MAX_QUESTIONS}</span></p>
               </div>
             </div>
-            {/* ปุ่มฟังโจทย์ซ้ำ */}
             <button 
               onClick={() => {
                   let text = "";
@@ -490,15 +461,11 @@ export default function FastMathGame() {
           </div>
         )}
 
-        {/* --- Main Content Area --- */}
         <div className="flex-1 flex items-center justify-center w-full my-auto animate-fade-in z-20">
-          {/* --- Demo --- */}
           {showDemo ? (
             <div className="w-full max-w-4xl">
-              {/* Card ตัวอย่างการเล่น */}
               <div className="bg-white/95 backdrop-blur-md rounded-[3rem] shadow-2xl p-8 md:p-12 border-8 border-white/50 ring-4 ring-yellow-200 relative overflow-hidden animate-fade-in">
                 
-                {/* Header */}
                 <div className="text-center mb-8">
                   <div className="inline-block p-4 bg-yellow-100 rounded-full mb-4 animate-bounce-slow">
                     <span className="text-6xl">💡</span>
@@ -507,14 +474,12 @@ export default function FastMathGame() {
                   <p className="text-lg text-slate-600 font-medium">มาดูวิธีเล่นกันเลย!</p>
                 </div>
 
-                {/* Step Indicator */}
                 <div className="flex justify-center gap-2 mb-8">
                   {[1, 2, 3, 4].map((step) => (
                     <div key={step} className={`w-12 h-2 rounded-full transition-all duration-500 ${demoStep >= step ? 'bg-blue-500' : 'bg-gray-200'}`} />
                   ))}
                 </div>
 
-                {/* คำอธิบายแต่ละ Step */}
                 <div className="mb-8">
                   {demoStep === 0 && (
                     <div className="text-center p-6 bg-blue-50 rounded-2xl animate-fade-in">
@@ -528,8 +493,6 @@ export default function FastMathGame() {
                         <p className="text-xl font-bold text-blue-900 mb-2">📋 ขั้นตอนที่ 1: อ่านโจทย์</p>
                         <p className="text-lg text-slate-700">ดูโจทย์คณิตศาสตร์ที่ปรากฏ</p>
                       </div>
-                      
-                      {/* โจทย์ */}
                       <div className="bg-white rounded-3xl shadow-xl p-10 border-4 border-blue-100 transform scale-105 animate-pulse-subtle">
                         <div className="text-7xl font-black text-blue-700 text-center bg-blue-50 rounded-2xl py-8">
                           15 + 7 = ?
@@ -544,15 +507,11 @@ export default function FastMathGame() {
                         <p className="text-xl font-bold text-green-900 mb-2">🤔 ขั้นตอนที่ 2: คิดและหาคำตอบ</p>
                         <p className="text-lg text-slate-700">15 + 7 = 22</p>
                       </div>
-                      
-                      {/* โจทย์ */}
                       <div className="bg-white rounded-3xl shadow-xl p-10 border-4 border-blue-100 mb-6">
                         <div className="text-6xl font-black text-blue-700 text-center bg-blue-50 rounded-2xl py-8">
                           15 + 7 = ?
                         </div>
                       </div>
-
-                      {/* ตัวเลือก - ยังไม่เลือก */}
                       <div className="grid grid-cols-2 gap-4">
                         {currentQuestion.options.map((option, index) => (
                           <div 
@@ -563,7 +522,6 @@ export default function FastMathGame() {
                           </div>
                         ))}
                       </div>
-                      
                       <div className="text-center mt-4">
                         <p className="text-lg text-green-600 font-bold animate-bounce">👆 มองหาคำตอบที่ถูกต้อง</p>
                       </div>
@@ -576,15 +534,11 @@ export default function FastMathGame() {
                         <p className="text-xl font-bold text-yellow-900 mb-2">👆 ขั้นตอนที่ 3: เลือกคำตอบ</p>
                         <p className="text-lg text-slate-700">คลิกที่คำตอบที่ถูกต้อง</p>
                       </div>
-                      
-                      {/* โจทย์ */}
                       <div className="bg-white rounded-3xl shadow-xl p-10 border-4 border-blue-100 mb-6">
                         <div className="text-6xl font-black text-blue-700 text-center bg-blue-50 rounded-2xl py-8">
                           15 + 7 = ?
                         </div>
                       </div>
-
-                      {/* ตัวเลือก - เลือกแล้ว */}
                       <div className="grid grid-cols-2 gap-4">
                         {currentQuestion.options.map((option, index) => (
                           <div 
@@ -604,7 +558,6 @@ export default function FastMathGame() {
                           </div>
                         ))}
                       </div>
-                      
                       <div className="text-center mt-6 p-4 bg-green-100 rounded-2xl">
                         <p className="text-2xl font-black text-green-700">🎉 ถูกต้อง! +10 คะแนน</p>
                       </div>
@@ -617,7 +570,6 @@ export default function FastMathGame() {
                         <p className="text-xl font-bold text-purple-900 mb-2">🎯 ขั้นตอนที่ 4: เล่นต่อ</p>
                         <p className="text-lg text-slate-700">ทำแบบนี้ไปเรื่อยๆ จนครบ 10 ข้อ!</p>
                       </div>
-                      
                       <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-3xl p-8 border-4 border-blue-200">
                         <div className="text-center space-y-4">
                           <p className="text-3xl font-black text-blue-900">กติกาเกม</p>
@@ -645,7 +597,6 @@ export default function FastMathGame() {
                   )}
                 </div>
 
-                {/* ปุ่มควบคุม */}
                 <div className="flex flex-col md:flex-row gap-4 mt-8">
                   <button 
                     onClick={closeDemo} 
@@ -665,7 +616,6 @@ export default function FastMathGame() {
                 <h1 className="text-5xl md:text-6xl font-black text-[#1e40af] mb-2 tracking-tight drop-shadow-sm">เกมบวกเลข</h1>
                 <p className="text-xl text-slate-700 font-bold mb-1">ฝึกคิดเลขเร็ว</p>
                 <p className="text-lg text-slate-500 font-medium">เลือกคำตอบที่ถูกต้องให้ไวที่สุด</p>
-                {/* ปุ่มฟังคำแนะนำ + ตัวอย่างการเล่น */}
                 <div className="flex flex-row justify-center mt-6 gap-4 items-center w-full">
                     <button
                       onClick={() => speak('เลือกความยาก เพื่อเริ่มเล่นได้เลยครับ')}
@@ -686,27 +636,57 @@ export default function FastMathGame() {
                 </div>
               </div>
               <div className="flex flex-col md:flex-row gap-8 w-full max-w-2xl justify-center items-stretch mb-10 px-4">
-                <button onClick={() => { setDifficulty(1); if (!soundDisabled) speak("ระดับธรรมดา... เริ่มเกมครับ"); }} className={`flex-1 group relative bg-white rounded-[2.5rem] p-8 transition-all duration-300 flex flex-col items-center justify-center border-4 ${difficulty === 1 ? 'border-[#60A5FA] shadow-[0_0_20px_rgba(96,165,250,0.6)] scale-105 z-20 ring-4 ring-blue-100' : 'border-transparent shadow-lg hover:border-blue-200 hover:-translate-y-1 hover:shadow-xl'}`}>
+                <button 
+                  onClick={() => {
+                    setSelectedLevel(1);
+                    if (!soundDisabled) speak("ระดับธรรมดาครับ");
+                  }}
+                  className={`flex-1 group relative bg-white rounded-[2.5rem] p-8 transition-all duration-300 flex flex-col items-center justify-center border-4 ${
+                    selectedLevel === 1 
+                      ? 'border-[#60A5FA] shadow-[0_0_20px_rgba(96,165,250,0.6)] scale-105 z-20 ring-4 ring-blue-100' 
+                      : 'border-transparent shadow-lg hover:border-blue-200 hover:-translate-y-1 hover:shadow-xl'
+                  }`}
+                >
                   <div className="w-24 h-24 bg-orange-100 rounded-full flex items-center justify-center text-6xl mb-4 shadow-inner">😊</div>
-                  <h3 className={`text-3xl font-black mb-2 ${difficulty === 1 ? 'text-[#2563EB]' : 'text-[#1e3a8a]'}`}>ระดับธรรมดา</h3>
+                  <h3 className={`text-3xl font-black mb-2 ${selectedLevel === 1 ? 'text-[#2563EB]' : 'text-[#1e3a8a]'}`}>ระดับธรรมดา</h3>
                   <p className="text-sm text-slate-500 font-bold">โจทย์เลข 2 ตัว</p>
                 </button>
-                <button onClick={() => { setDifficulty(2); if (!soundDisabled) speak("ระดับยาก... เริ่มเกมครับ"); }} className={`flex-1 group relative bg-white rounded-[2.5rem] p-8 transition-all duration-300 flex flex-col items-center justify-center border-4 ${difficulty === 2 ? 'border-[#A855F7] shadow-[0_0_20px_rgba(168,85,247,0.6)] scale-105 z-20 ring-4 ring-purple-100' : 'border-transparent shadow-lg hover:border-purple-200 hover:-translate-y-1 hover:shadow-xl'}`}>
+                <button 
+                  onClick={() => {
+                    setSelectedLevel(2);
+                    if (!soundDisabled) speak("ระดับยากครับ");
+                  }}
+                  className={`flex-1 group relative bg-white rounded-[2.5rem] p-8 transition-all duration-300 flex flex-col items-center justify-center border-4 ${
+                    selectedLevel === 2 
+                      ? 'border-[#A855F7] shadow-[0_0_20px_rgba(168,85,247,0.6)] scale-105 z-20 ring-4 ring-purple-100' 
+                      : 'border-transparent shadow-lg hover:border-purple-200 hover:-translate-y-1 hover:shadow-xl'
+                  }`}
+                >
                   <div className="w-24 h-24 bg-pink-100 rounded-full flex items-center justify-center text-6xl mb-4 shadow-inner">🤓</div>
-                  <h3 className={`text-3xl font-black mb-2 ${difficulty === 2 ? 'text-[#7C3AED]' : 'text-[#581c87]'}`}>ระดับยาก</h3>
+                  <h3 className={`text-3xl font-black mb-2 ${selectedLevel === 2 ? 'text-[#7C3AED]' : 'text-[#581c87]'}`}>ระดับยาก</h3>
                   <p className="text-sm text-slate-500 font-bold">โจทย์เลข 3-4 ตัว</p>
                 </button>
               </div>
               <div className="flex flex-col items-center w-full">
                 <button
-                  onClick={() => { if (!soundDisabled) speak("เริ่มเกมครับ"); initializeGame(); }}
-                  className={`w-full max-w-md mx-auto py-4 rounded-2xl text-2xl font-black shadow-lg transition-all duration-200 ${difficulty ? 'bg-gradient-to-r from-[#A855F7] to-[#8B5CF6] text-white hover:scale-105 hover:shadow-purple-300/50 cursor-pointer border-b-4 border-[#7E22CE]' : 'bg-slate-300 text-slate-500 cursor-not-allowed border-b-4 border-slate-400'}`}
+                  onClick={() => { 
+                    if (selectedLevel) {
+                      if (!soundDisabled) speak("เริ่มเกมครับ");
+                      initializeGame(selectedLevel);
+                    }
+                  }}
+                  disabled={!selectedLevel}
+                  className={`w-full max-w-md mx-auto py-4 rounded-2xl text-2xl font-black shadow-lg transition-all duration-200 ${
+                    selectedLevel 
+                      ? 'bg-gradient-to-r from-[#A855F7] to-[#8B5CF6] text-white hover:scale-105 hover:shadow-purple-300/50 cursor-pointer border-b-4 border-[#7E22CE]' 
+                      : 'bg-slate-300 text-slate-500 cursor-not-allowed border-b-4 border-slate-400'
+                  }`}
                 >
                   เริ่มเล่น
                 </button>
                 <button
                   onClick={() => {
-                    cancel(); // หยุดเสียง TTS ทันที
+                    cancel();
                     router.push('/welcome');
                   }}
                   className="w-full max-w-md mx-auto mt-4 bg-gradient-to-r from-[#38bdf8] to-[#2563eb] hover:from-[#60a5fa] hover:to-[#1d4ed8] active:from-[#2563eb] active:to-[#38bdf8] text-white text-2xl font-bold py-4 px-10 rounded-2xl shadow-lg border-2 border-[#2563eb] transition-all drop-shadow-lg"
@@ -724,7 +704,6 @@ export default function FastMathGame() {
               <div className="card text-center bg-white/95 backdrop-blur-md rounded-[3rem] shadow-2xl p-10 border-[8px] border-white/50 ring-4 ring-blue-200">
                 <div className="text-9xl mb-4 animate-bounce drop-shadow-md">🎉</div>
                 <h2 className="text-6xl font-black text-blue-900 mb-4 tracking-tight">เก่งมาก!</h2>
-                {/* subtitle intentionally removed per request */}
                 <div className="grid grid-cols-2 gap-6 mb-10">
                   <div className="bg-yellow-50 p-6 rounded-3xl border-2 border-yellow-100">
                     <p className="text-yellow-600 font-bold text-lg mb-1 uppercase tracking-wider">ความถูกต้อง</p>
@@ -739,14 +718,6 @@ export default function FastMathGame() {
                     <p className="text-5xl font-black text-green-800">{formatTime(totalTime)}</p>
                   </div>
                 </div>
-                {!isDailyMode && (
-                    <button
-                      onClick={() => { setGameCompleted(false); setDifficulty(2); }}
-                      className="w-full max-w-md mx-auto py-5 mb-4 bg-green-500 hover:bg-green-600 text-white font-extrabold text-2xl rounded-2xl shadow transition-all"
-                    >
-                      ถัดไป(ยาก)
-                    </button>
-                )}
 
                 {isDailyMode ? (
                   <button 

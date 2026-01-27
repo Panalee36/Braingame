@@ -18,38 +18,132 @@ export function addMemoryImage(label: string, filename: string) {
 
 // Color Matching Game Utilities
 export const generateColorCards = (difficulty: number) => {
-  // กำหนดสีพื้นฐานและชื่อ
-  const COLORS = [
-    { color: '#f87171', name: 'แดง' },
-    { color: '#fbbf24', name: 'เหลือง' },
-    { color: '#34d399', name: 'เขียว' },
-    { color: '#60a5fa', name: 'ฟ้า' },
-    { color: '#a78bfa', name: 'ม่วง' },
-    { color: '#f472b6', name: 'ชมพู' },
-    { color: '#facc15', name: 'ทอง' },
-    { color: '#fb7185', name: 'แดงเข้ม' },
-    { color: '#38bdf8', name: 'ฟ้าอ่อน' },
-    { color: '#4ade80', name: 'เขียวอ่อน' },
-    { color: '#fcd34d', name: 'เหลืองอ่อน' },
-    { color: '#a3e635', name: 'เขียวมะนาว' },
-    { color: '#e879f9', name: 'ม่วงอ่อน' },
-    { color: '#fdba74', name: 'ส้มอ่อน' },
-    { color: '#6ee7b7', name: 'เขียวมิ้นท์' },
-    { color: '#818cf8', name: 'น้ำเงินอ่อน' },
-    { color: '#fca5a5', name: 'ชมพูอ่อน' },
-    { color: '#fde68a', name: 'เหลืองทอง' },
-    { color: '#bbf7d0', name: 'เขียวพาสเทล' },
-    { color: '#f9a8d4', name: 'ชมพูพาสเทล' },
+  // จัดกลุ่มสีตามโทนสี เพื่อไม่ให้สุ่มโทนเดียวกันซ้ำ
+  const COLOR_GROUPS = [
+    // กลุ่มแดง
+    [
+      { color: '#ef4444', name: 'แดง' },
+      { color: '#fb7185', name: 'แดงสด' },
+      { color: '#dc2626', name: 'แดงเข้ม' },
+    ],
+    // กลุ่มส้ม
+    [
+      { color: '#f97316', name: 'ส้ม' },
+      { color: '#fb923c', name: 'ส้มอ่อน' },
+      { color: '#fdba74', name: 'ส้มพีช' },
+    ],
+    // กลุ่มเหลือง
+    [
+      { color: '#eab308', name: 'เหลือง' },
+      { color: '#fbbf24', name: 'เหลืองทอง' },
+      { color: '#fde047', name: 'เหลืองสด' },
+    ],
+    // กลุ่มเขียวมะนาว
+    [
+      { color: '#84cc16', name: 'เขียวมะนาว' },
+      { color: '#a3e635', name: 'เขียวอ่อน' },
+    ],
+    // กลุ่มเขียว
+    [
+      { color: '#22c55e', name: 'เขียว' },
+      { color: '#10b981', name: 'เขียวใบไม้' },
+      { color: '#34d399', name: 'เขียวสด' },
+    ],
+    // กลุ่มเขียวมิ้นท์
+    [
+      { color: '#14b8a6', name: 'เขียวมิ้นท์' },
+      { color: '#2dd4bf', name: 'เขียวทะเล' },
+      { color: '#5eead4', name: 'เขียวพาสเทล' },
+    ],
+    // กลุ่มฟ้า
+    [
+      { color: '#06b6d4', name: 'ฟ้าเข้ม' },
+      { color: '#0ea5e9', name: 'ฟ้า' },
+      { color: '#38bdf8', name: 'ฟ้าสด' },
+    ],
+    // กลุ่มน้ำเงิน
+    [
+      { color: '#3b82f6', name: 'น้ำเงิน' },
+      { color: '#60a5fa', name: 'น้ำเงินอ่อน' },
+      { color: '#93c5fd', name: 'น้ำเงินพาสเทล' },
+    ],
+    // กลุ่มม่วงน้ำเงิน
+    [
+      { color: '#6366f1', name: 'ม่วงน้ำเงิน' },
+      { color: '#818cf8', name: 'ม่วงอ่อน' },
+    ],
+    // กลุ่มม่วง
+    [
+      { color: '#8b5cf6', name: 'ม่วง' },
+      { color: '#a78bfa', name: 'ม่วงสด' },
+      { color: '#c4b5fd', name: 'ม่วงพาสเทล' },
+    ],
+    // กลุ่มม่วงชมพู
+    [
+      { color: '#a855f7', name: 'ม่วงชมพู' },
+      { color: '#c084fc', name: 'ม่วงอมชมพู' },
+      { color: '#e879f9', name: 'ม่วงอ่อน' },
+    ],
+    // กลุ่มชมพูเข้ม
+    [
+      { color: '#ec4899', name: 'ชมพูเข้ม' },
+      { color: '#f472b6', name: 'ชมพู' },
+      { color: '#f9a8d4', name: 'ชมพูสด' },
+    ],
+    // กลุ่มชมพูอ่อน
+    [
+      { color: '#f43f5e', name: 'ชมพูแดง' },
+      { color: '#fb7185', name: 'ชมพูอ่อน' },
+      { color: '#fda4af', name: 'ชมพูพาสเทล' },
+    ],
   ];
-  // จำนวนคู่ไพ่ตามระดับ (10 คู่สำหรับธรรมดา, 15 คู่สำหรับยาก)
+
+  // จำนวนคู่ที่ต้องการ
   const pairs = difficulty === 2 ? 15 : 10;
-  const selected = COLORS.slice(0, pairs);
+  
+  // สุ่มเลือกกลุ่มสีโดยไม่ซ้ำ
+  const shuffledGroups = [...COLOR_GROUPS].sort(() => Math.random() - 0.5);
+  const selectedColors = [];
+  const usedGroupIndices = new Set<number>();
+  
+  // เลือกสีจากแต่ละกลุ่มทีละ 1 สี (เลือกกลุ่มที่ต่างกัน)
+  for (let i = 0; i < pairs && i < shuffledGroups.length; i++) {
+    const group = shuffledGroups[i];
+    // สุ่มเลือก 1 สีจากกลุ่ม
+    const randomColor = group[Math.floor(Math.random() * group.length)];
+    selectedColors.push(randomColor);
+    usedGroupIndices.add(i);
+  }
+  
+  // ถ้ายังไม่ครบจำนวน ให้เลือกจากกลุ่มที่ยังไม่ได้ใช้
+  if (selectedColors.length < pairs) {
+    for (let i = 0; i < shuffledGroups.length && selectedColors.length < pairs; i++) {
+      if (!usedGroupIndices.has(i)) {
+        const group = shuffledGroups[i];
+        // ถ้ากลุ่มมีสีมากกว่า 1 สี ให้เลือกสีอื่นที่ไม่เหมือนที่เลือกไปก่อนหน้า
+        let colorIndex = Math.floor(Math.random() * group.length);
+        const randomColor = group[colorIndex];
+        selectedColors.push(randomColor);
+        usedGroupIndices.add(i);
+      }
+    }
+  }
+  
+  // ถ้ายังไม่ครบ ให้สุ่มจากทั้งหมด (ควรจะไม่เกิด แต่เพื่อ fallback)
+  while (selectedColors.length < pairs) {
+    const randomGroupIndex = Math.floor(Math.random() * shuffledGroups.length);
+    const group = shuffledGroups[randomGroupIndex];
+    const randomColor = group[Math.floor(Math.random() * group.length)];
+    selectedColors.push(randomColor);
+  }
+  
   // สร้างไพ่ 2 ใบต่อสี
-  const cards = selected.flatMap((c, i) => [
+  const cards = selectedColors.flatMap((c, i) => [
     { id: `c${i}-a`, color: c.color, colorName: c.name },
     { id: `c${i}-b`, color: c.color, colorName: c.name },
   ]);
-  // สุ่มลำดับ
+  
+  // สุ่มลำดับการ์ด
   return cards.sort(() => Math.random() - 0.5);
 };
 

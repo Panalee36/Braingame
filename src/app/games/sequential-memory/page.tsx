@@ -50,6 +50,12 @@ export default function SequentialMemoryGame() {
   // ✅ 2. แทรก Hook เสียงตรงนี้ (ไม่กระทบ Logic เกม)
   const { speak, cancel } = useTTS();
   const [hasInteracted, setHasInteracted] = useState(false); // ปุ่มปลดล็อกเสียง
+  // ✅ แทรกโค้ดนี้ลงไปบรรทัดถัดมาได้เลยครับ
+  useEffect(() => {
+    if (isDailyMode) {
+        setHasInteracted(true);
+    }
+  }, [isDailyMode]);
   const hasSpokenWelcome = useRef(false);
   // เพิ่ม state สำหรับปิดเสียงบรรยาย (TTS)
   const [soundDisabled, setSoundDisabled] = useState(false);
@@ -182,9 +188,9 @@ export default function SequentialMemoryGame() {
     return () => { if (timer) clearInterval(timer); };
   }, [showDisplayTimer, gameStarted, gameCompleted, showImages]);
 
-  // ✅ เพิ่ม useEffect สำหรับบันทึกคะแนนเมื่อจบเกม
+  // ✅ เพิ่ม useEffect สำหรับบันทึกคะแนนเมื่อจบเกม (ไม่บันทึกถ้าเป็น daily mode)
   useEffect(() => {
-    if (gameCompleted && !isSaving) {
+    if (gameCompleted && !isSaving && !isDailyMode) {
       setIsSaving(true);
       const userId = localStorage.getItem('userId');
       if (userId) {
@@ -202,7 +208,7 @@ export default function SequentialMemoryGame() {
         .catch(err => console.error('Error saving score:', err));
       }
     }
-  }, [gameCompleted, isSaving, score]);
+  }, [gameCompleted, isSaving, score, isDailyMode]);
 
   function shuffleArray<T>(array: T[]): T[] {
     const arr = [...array];

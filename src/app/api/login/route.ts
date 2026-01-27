@@ -61,6 +61,7 @@ export async function POST(req: Request) {
         id: user._id.toHexString(),
         username: user.username,
         age: user.age,
+        createdAt: user.createdAt,
         anonId,
       },
     });

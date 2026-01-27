@@ -68,11 +68,20 @@ export default function AnimalSoundGame() {
   // ✅ เรียกใช้ Hook เสียง
   const { speak, cancel } = useTTS();
   const [hasInteracted, setHasInteracted] = useState(false);
+  // ✅ แทรกโค้ดนี้ลงไปบรรทัดถัดมาได้เลยครับ
+  useEffect(() => {
+    if (isDailyMode) {
+        setHasInteracted(true);
+    }
+  }, [isDailyMode]);
   const [soundDisabled, setSoundDisabled] = useState(false);
   const hasSpokenWelcome = useRef(false);
 
   // ✅ เพิ่ม State สำหรับกันการบันทึกซ้ำ
   const [isSaving, setIsSaving] = useState(false);
+  
+  // ✅ เพิ่ม State สำหรับติดตามว่าได้อธิบายแค่ข้อแรกหรือยัง
+  const [hasGivenInstructions, setHasGivenInstructions] = useState(false);
 
   const [currentAnimal, setCurrentAnimal] = useState<AnimalSound | null>(null)
   const [options, setOptions] = useState<AnimalSound[]>([])
@@ -104,16 +113,17 @@ export default function AnimalSoundGame() {
     }
   }, [hasInteracted, gameStarted, isDailyMode, showDemo, speak, soundDisabled]);
 
-  // 3.2 เสียงบอกให้กดฟัง (ทำงานทุกข้อ)
+  // 3.2 เสียงบอกให้กดฟัง (เฉพาะข้อแรกเท่านั้น)
   useEffect(() => {
     if (soundDisabled) return;
-    if (gameStarted && !gameCompleted && !soundPlayed) {
+    if (gameStarted && !gameCompleted && !soundPlayed && !hasGivenInstructions && questionsAnswered === 0) {
       const timer = setTimeout(() => {
         speak("กดปุ่มลำโพง... เพื่อฟังเสียงสัตว์ครับ");
+        setHasGivenInstructions(true); // ✅ ทำให้อธิบายแค่ข้อแรก
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [gameStarted, gameCompleted, soundPlayed, currentAnimal, speak, soundDisabled]);
+  }, [gameStarted, gameCompleted, soundPlayed, currentAnimal, questionsAnswered, hasGivenInstructions, speak, soundDisabled]);
 
   // 3.3 เสียงหลังจากกดฟังแล้ว (ให้เลือกตอบ)
   useEffect(() => {
@@ -144,6 +154,7 @@ export default function AnimalSoundGame() {
   const initializeGame = () => {
     cancel();
     setIsSaving(false); // ✅ Reset สถานะการบันทึก
+    setHasGivenInstructions(false); // ✅ Reset เพื่อให้พูดอธิบายใหม่เมื่อเริ่มเกมใหม่
     const animalList = ANIMALS;
     const totalAnimals = animalList.length;
     // สร้าง Array ของ Index ทั้งหมด [0, 1, 2, ..., total-1]
@@ -260,9 +271,9 @@ export default function AnimalSoundGame() {
     return () => clearInterval(timer)
   }, [gameStarted, gameCompleted])
 
-  // ✅ เพิ่ม useEffect สำหรับบันทึกคะแนนเมื่อจบเกม
+  // ✅ เพิ่ม useEffect สำหรับบันทึกคะแนนเมื่อจบเกม (ไม่บันทึกถ้าเป็น daily mode)
   useEffect(() => {
-    if (gameCompleted && !isSaving) {
+    if (gameCompleted && !isSaving && !isDailyMode) {
       setIsSaving(true);
       const userId = localStorage.getItem('userId');
       if (userId) {
@@ -271,7 +282,7 @@ export default function AnimalSoundGame() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: userId,
-            gameType: 'animal-sound', // ตรงตามประเภทเกม
+            gameType: 'animal-sound',
             score: correctAnswers
           })
         })
@@ -280,7 +291,7 @@ export default function AnimalSoundGame() {
         .catch(err => console.error('Error saving score:', err));
       }
     }
-  }, [gameCompleted, isSaving, correctAnswers]);
+  }, [gameCompleted, isSaving, correctAnswers, isDailyMode]);
 
   const playSound = () => {
     if (currentAnimal?.soundUrl) {

@@ -57,6 +57,12 @@ export default function ColorMatchingGame() {
   // ✅ 2. แทรก Hook เสียงตรงนี้ (ไม่กระทบ Logic เกม)
   const { speak, cancel } = useTTS();
   const [hasInteracted, setHasInteracted] = useState(false);
+  // ✅ แทรกโค้ดนี้ลงไปบรรทัดถัดมาได้เลยครับ
+  useEffect(() => {
+    if (isDailyMode) {
+        setHasInteracted(true);
+    }
+  }, [isDailyMode]);
   const hasSpokenWelcome = useRef(false);
   const [soundDisabled, setSoundDisabled] = useState(false);
 
@@ -203,9 +209,9 @@ export default function ColorMatchingGame() {
     return () => clearInterval(timer)
   }, [gameStarted, gameCompleted, previewing])
 
-  // ✅ เพิ่ม useEffect สำหรับบันทึกคะแนนเมื่อจบเกม
+  // ✅ เพิ่ม useEffect สำหรับบันทึกคะแนนเมื่อจบเกม (ไม่บันทึกถ้าเป็น daily mode)
   useEffect(() => {
-    if (gameCompleted && !isSaving) {
+    if (gameCompleted && !isSaving && !isDailyMode) {
       setIsSaving(true);
       const userId = localStorage.getItem('userId');
       if (userId) {
@@ -223,7 +229,7 @@ export default function ColorMatchingGame() {
         .catch(err => console.error('Error saving score:', err));
       }
     }
-  }, [gameCompleted, isSaving, matchedPairs]);
+  }, [gameCompleted, isSaving, matchedPairs, isDailyMode]);
 
   const handleCardClick = (cardId: string) => {
     if (previewing || gameCompleted) return 
@@ -868,7 +874,7 @@ export default function ColorMatchingGame() {
                     </div>
                 </div>
 
-                {!isDailyMode && (
+                {!isDailyMode && difficulty === 1 && (
                     <button 
                         onClick={() => { setGameStarted(false); setDifficulty(2); setSelectedLevel(2); }} 
                         className="w-full py-5 mb-4 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold text-xl rounded-2xl shadow-lg shadow-red-200 transition-all hover:scale-[1.02] active:scale-95 border-b-4 border-red-700 active:border-b-0 active:translate-y-0"

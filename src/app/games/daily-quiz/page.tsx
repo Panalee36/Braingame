@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import confetti from 'canvas-confetti'
+import { useTTS } from '@/hooks/useTTS'
 
 // --- ข้อมูลเกม (คงเดิม) ---
 const ALL_GAMES = [
@@ -14,22 +15,17 @@ const ALL_GAMES = [
     { id: 'vocabulary', title: 'เกมจำศัพท์', icon: '📚' },
 ];
 
-// --- ☁️ ธีมพื้นหลังก้อนเมฆ (Cloud Theme) - ส่วนที่เพิ่มเข้ามา ---
+// --- ☁️ ธีมพื้นหลังก้อนเมฆ (Cloud Theme) - คงเดิม ---
 const PerfectCloudTheme = () => {
   return (
     <div className="absolute inset-0 z-0 overflow-hidden bg-[#7EC8FF]">
-      {/* ไล่สีท้องฟ้า */}
       <div className="absolute inset-0 bg-gradient-to-b from-[#60A5FA] via-[#93C5FD] to-[#CDE8FE]"></div>
-
-      {/* เมฆลอย */}
       <svg className="absolute top-[8%] left-[5%] w-32 text-white/30 animate-float-slow" viewBox="0 0 120 60" fill="currentColor">
          <path d="M10,40 Q20,15 45,25 Q60,10 80,20 Q100,15 110,35 Q115,50 100,55 H15 Q5,50 10,40 Z" />
       </svg>
       <svg className="absolute top-[12%] right-[5%] w-24 text-white/20 animate-float-delayed" viewBox="0 0 120 60" fill="currentColor">
          <path d="M10,35 Q30,10 55,20 Q80,5 100,25 Q110,45 95,50 H10 Z" />
       </svg>
-
-      {/* พื้นเมฆด้านล่าง */}
       <div className="absolute bottom-0 w-full h-[40%] pointer-events-none">
          <svg className="absolute bottom-0 w-full h-full text-white/30 transform scale-y-110 origin-bottom" viewBox="0 0 1440 320" preserveAspectRatio="none" fill="currentColor">
             <path d="M0,224L48,213.3C96,203,192,181,288,186.7C384,192,480,224,576,213.3C672,203,768,149,864,138.7C960,128,1056,160,1152,181.3C1248,203,1344,213,1392,218.7L1440,224V320H0Z"></path>
@@ -45,164 +41,8 @@ const PerfectCloudTheme = () => {
   );
 };
 
-export default function DailyQuizPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const [step, setStep] = useState(0);
-  const [games, setGames] = useState<any[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [history, setHistory] = useState<string[]>([]);
-  const [cycleStartDate, setCycleStartDate] = useState<string | null>(null);
-  const [streakCount, setStreakCount] = useState(0);
-  const [showCard, setShowCard] = useState(false); // เพิ่ม State สำหรับ Animation
-
-  const STORAGE_KEY = 'daily_quiz_progress_v2';
-  const HISTORY_KEY = 'daily_quiz_completion_history';
-  const CYCLE_KEY = 'daily_quiz_cycle_start_date';
-
-  // --- 1. เริ่มต้น: โหลดข้อมูลและเช็ครอบวัน ---
-  useEffect(() => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); 
-        const todayStr = today.toDateString();
-        
-        function seededShuffle(array: any[], seed: string) {
-            let arr = [...array];
-            let s = 0;
-            for (let i = 0; i < seed.length; i++) s += seed.charCodeAt(i);
-            for (let i = arr.length - 1; i > 0; i--) {
-                s = (s * 9301 + 49297) % 233280;
-                const j = Math.floor((s / 233280) * (i + 1));
-                [arr[i], arr[j]] = [arr[j], arr[i]];
-            }
-            return arr;
-        }
-        function seededLevel(idx: number, seed: string) {
-            let s = 0;
-            for (let i = 0; i < seed.length; i++) s += seed.charCodeAt(i) * (idx + 1);
-            return (s % 3) + 1;
-        }
-
-        try {
-            // 1. โหลดประวัติ
-            const savedHistory = localStorage.getItem(HISTORY_KEY);
-            let currentHistory: string[] = [];
-            if (savedHistory) {
-                currentHistory = JSON.parse(savedHistory);
-                setHistory(currentHistory);
-            }
-            // *หมายเหตุ: calculateStreak จะถูกเรียกใช้ได้เพราะ useEffect ทำงานหลัง render (Hoisting)*
-            setStreakCount(calculateStreak(currentHistory, todayStr));
-
-            // 2. ✅ แก้ไข Logic รีเซ็ตรอบ 7 วัน (ส่วนที่เพิ่ม)
-            let savedCycleStart = localStorage.getItem(CYCLE_KEY);
-            
-            if (!savedCycleStart) {
-                savedCycleStart = todayStr;
-                localStorage.setItem(CYCLE_KEY, savedCycleStart);
-            } else {
-                const start = new Date(savedCycleStart);
-                const diffTime = today.getTime() - start.getTime();
-                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
-
-                // ถ้าผ่านไป 7 วันขึ้นไป -> รีเซ็ตใหม่
-                if (diffDays >= 7 || diffDays < 0) {
-                    savedCycleStart = todayStr;
-                    localStorage.setItem(CYCLE_KEY, savedCycleStart);
-                }
-            }
-            setCycleStartDate(savedCycleStart);
-
-            // 3. โหลด/สุ่มเกม (คงเดิม)
-            let currentGames = [];
-            let currentStep = 0;
-            const savedData = localStorage.getItem(STORAGE_KEY);
-            
-            if (savedData) {
-                const parsed = JSON.parse(savedData);
-                if (parsed.date === todayStr) {
-                    currentGames = parsed.games;
-                    currentStep = parsed.currentStep || 0;
-                } else {
-                    const shuffled = seededShuffle(ALL_GAMES, todayStr);
-                    currentGames = shuffled.slice(0, 3).map((game, idx) => ({ ...game, level: seededLevel(idx, todayStr) }));
-                }
-            } else {
-                const shuffled = seededShuffle(ALL_GAMES, todayStr);
-                currentGames = shuffled.slice(0, 3).map((game, idx) => ({ ...game, level: seededLevel(idx, todayStr) }));
-            }
-
-            // 4. เช็ค State การกลับมาจากเกม (คงเดิม แต่เพิ่ม Animation Trigger)
-            const action = searchParams.get('action');
-            const playedStepStr = searchParams.get('playedStep');
-            const playedStep = playedStepStr ? parseInt(playedStepStr, 10) : -1;
-            
-            if (action === 'next' && playedStep === currentStep && currentStep < 4) {
-                const nextStep = currentStep + 1;
-                currentStep = nextStep;
-
-                localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                    date: todayStr,
-                    games: currentGames,
-                    currentStep: nextStep
-                }));
-
-                if (nextStep === 4) {
-                    if (!currentHistory.includes(todayStr)) {
-                        const newHistory = [...currentHistory, todayStr];
-                        setHistory(newHistory);
-                        localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
-                        
-                        // คำนวณ Streak ใหม่เพื่อใช้กำหนดคะแนนโบนัส
-                        const newStreak = calculateStreak(newHistory, todayStr);
-                        setStreakCount(newStreak);
-                        
-                        // ✅ [เพิ่มใหม่] บันทึกคะแนนโบนัสลง Database
-                        const userId = localStorage.getItem('userId');
-                        if (userId) {
-                            const bonusPoints = (newStreak % 7 === 0) ? 500 : 150;
-                            fetch('/api/game/history', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    userId: userId,
-                                    gameType: 'daily-quiz-bonus', // ระบุว่าเป็นโบนัสประจำวัน
-                                    score: bonusPoints
-                                })
-                            })
-                            .then(res => res.json())
-                            .then(data => console.log('Daily bonus saved:', data))
-                            .catch(err => console.error('Error saving bonus:', err));
-                        }
-
-                        setTimeout(() => runFireworks(), 500);
-                        setTimeout(() => setShowCard(true), 100); // Trigger Animation
-                    }
-                }
-                router.replace('/games/daily-quiz');
-            } else {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                    date: todayStr,
-                    games: currentGames,
-                    currentStep: currentStep
-                }));
-            }
-
-            setGames(currentGames);
-            setStep(currentStep);
-            setIsLoaded(true);
-            if(currentStep === 4) setTimeout(() => setShowCard(true), 100);
-
-        } catch (error) {
-            console.error("Error loading:", error);
-            setGames(ALL_GAMES.slice(0, 3));
-            setIsLoaded(true);
-        }
-    }, [searchParams, router]);
-
-  // (ฟังก์ชัน calculateStreak, runFireworks, runSideCannons คงเดิม)
-  const calculateStreak = (historyList: string[], todayStr: string) => {
+// ฟังก์ชันช่วยคำนวณ Streak
+const calculateStreak = (historyList: string[], todayStr: string) => {
     let count = 0;
     const today = new Date(todayStr);
     const yesterday = new Date(today);
@@ -215,7 +55,254 @@ export default function DailyQuizPage() {
         } else { break; }
     }
     return count;
+};
+
+// ฟังก์ชันสุ่มเกม (แยกออกมาเพื่อใช้ร่วมกัน)
+const generateDailyGames = (seed: string) => {
+    function seededShuffle(array: any[], seed: string) {
+        let arr = [...array];
+        let s = 0;
+        for (let i = 0; i < seed.length; i++) s += seed.charCodeAt(i);
+        for (let i = arr.length - 1; i > 0; i--) {
+            s = (s * 9301 + 49297) % 233280;
+            const j = Math.floor((s / 233280) * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+    function seededLevel(idx: number, seed: string) {
+        let s = 0;
+        for (let i = 0; i < seed.length; i++) s += seed.charCodeAt(i) * (idx + 1);
+        return (s % 3) + 1;
+    }
+    const shuffled = seededShuffle(ALL_GAMES, seed);
+    return shuffled.slice(0, 3).map((game, idx) => ({ ...game, level: seededLevel(idx, seed) }));
+};
+
+export default function DailyQuizPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // ✅ 2. เตรียม TTS และ State การกดปุ่ม
+    const { speak } = useTTS();
+    const [hasInteracted, setHasInteracted] = useState(false);
+    const [soundDisabled, setSoundDisabled] = useState(false);
+
+  const [step, setStep] = useState(0);
+  const [games, setGames] = useState<any[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [history, setHistory] = useState<string[]>([]);
+  const [cycleStartDate, setCycleStartDate] = useState<string | null>(null);
+  const [streakCount, setStreakCount] = useState(0);
+  const [showCard, setShowCard] = useState(false); 
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // ✅ 3. Logic การพูดเสียง (ทำงานเมื่อ step เปลี่ยน และ user กดเริ่มใช้งานแล้ว)
+  useEffect(() => {
+    if (!hasInteracted || !isLoaded || soundDisabled) return;
+
+    if (step === 0) {
+        // หน้าแรก Dashboard
+        setTimeout(() => {
+            speak("ยินดีต้อนรับสู่ภารกิจประจำวันครับ... ฝึกสมองวันละนิด จิตแจ่มใส... ถ้าพร้อมแล้ว เริ่มทำภารกิจกันเลยครับ");
+        }, 800);
+    } else if (step > 0 && step <= 3) {
+        // หน้าก่อนเริ่มเกม 1-3
+        const game = games[step - 1];
+        if (game) {
+            setTimeout(() => {
+                speak(`ด่านที่ ${step}... ${game.title}... ความยากระดับ ${game.level}... กดปุ่มเล่นเกม เพื่อเริ่มได้เลยครับ`);
+            }, 800);
+        }
+    } else if (step === 4) {
+        // หน้าจบภารกิจ
+        setTimeout(() => {
+            speak("ยินดีด้วยครับ... คุณทำภารกิจวันนี้สำเร็จแล้ว... สุดยอดมากครับ");
+        }, 800);
+    }
+  }, [step, hasInteracted, isLoaded, games, speak]);
+
+
+  // ✅ Helper: สร้างชื่อ Key สำหรับ LocalStorage ตาม UserID
+  const getStorageKey = (base: string, uid: string | null) => {
+      if (uid) return `${base}_${uid}`; // แยกของใครของมัน เช่น daily_progress_user123
+      return base; // ของ Guest (ใช้ร่วมกันในเครื่อง)
   };
+
+  // ✅ ฟังก์ชันบันทึกข้อมูล (Sync ลง DB และ LocalStorage)
+  const saveData = async (newDate: string, newGames: any[], newStep: number, newHistory: string[], newStreak: number, newCycleStart: string, currentUserId: string | null) => {
+    const STORAGE_KEY = getStorageKey('daily_quiz_progress_v2', currentUserId);
+    const HISTORY_KEY = getStorageKey('daily_quiz_completion_history', currentUserId);
+    const CYCLE_KEY = getStorageKey('daily_quiz_cycle_start_date', currentUserId);
+
+    // 1. ลง Local Storage (Backup) - แยกตาม User
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: newDate, games: newGames, currentStep: newStep }));
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
+    localStorage.setItem(CYCLE_KEY, newCycleStart);
+
+    // 2. ลง Database (ถ้ามี userId)
+    if (currentUserId) {
+        try {
+            await fetch('/api/game/daily', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: currentUserId,
+                    date: newDate,
+                    games: newGames,
+                    currentStep: newStep,
+                    history: newHistory,
+                    streak: newStreak,
+                    cycleStartDate: newCycleStart
+                })
+            });
+        } catch (err) { console.error("Sync Error", err); }
+    }
+  };
+
+  // --- 1. เริ่มต้น: โหลดข้อมูลและเช็ครอบวัน (Logic ใหม่ที่รองรับ DB และแยก User) ---
+  useEffect(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); 
+        const todayStr = today.toDateString();
+        
+        // เช็ค UserID
+        const storedUserId = localStorage.getItem('userId');
+        setUserId(storedUserId);
+
+        const initialize = async () => {
+            let currentGames = [];
+            let currentStep = 0;
+            let currentHistory: string[] = [];
+            let currentCycleStart = todayStr;
+            let currentStreak = 0;
+
+            // 1. ลองโหลดจาก DB ก่อน
+            let dbData = null;
+            if (storedUserId) {
+                try {
+                    const res = await fetch(`/api/game/daily?userId=${storedUserId}`);
+                    const json = await res.json();
+                    if (json.success && json.data) dbData = json.data;
+                } catch (e) {}
+            }
+
+            // --- เตรียม Keys สำหรับ LocalStorage แบบแยก User ---
+            const STORAGE_KEY = getStorageKey('daily_quiz_progress_v2', storedUserId);
+            const HISTORY_KEY = getStorageKey('daily_quiz_completion_history', storedUserId);
+            const CYCLE_KEY = getStorageKey('daily_quiz_cycle_start_date', storedUserId);
+
+            // 2. เตรียมข้อมูล History & Cycle
+            if (dbData && dbData.history) {
+                // ถ้ามีใน DB ใช้จาก DB
+                currentHistory = dbData.history;
+                if (dbData.cycleStartDate) currentCycleStart = dbData.cycleStartDate;
+            } else if (storedUserId) {
+                // ✅ ถ้าเป็น User ใหม่ (มี userId แต่ไม่มี dbData) -> เริ่มใหม่เลย! (ไม่ดึง LocalStorage มั่ว)
+                currentHistory = [];
+                currentCycleStart = todayStr;
+            } else {
+                // ถ้าเป็น Guest (ไม่มี userId) -> ดึงจาก LocalStorage ได้
+                const localH = localStorage.getItem(HISTORY_KEY);
+                if (localH) currentHistory = JSON.parse(localH);
+                
+                const localC = localStorage.getItem(CYCLE_KEY);
+                if (localC) currentCycleStart = localC;
+            }
+            
+            currentStreak = calculateStreak(currentHistory, todayStr);
+            
+            // เช็ครอบ 7 วัน
+            const start = new Date(currentCycleStart);
+            const diffTime = today.getTime() - start.getTime();
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+            if (diffDays >= 7 || diffDays < 0) currentCycleStart = todayStr;
+
+            // 3. เตรียมข้อมูล Games & Step
+            if (dbData && dbData.date === todayStr) {
+                currentGames = dbData.games;
+                currentStep = dbData.currentStep;
+            } else {
+                // ถ้า DB ไม่มีของวันนี้
+                let loadedLocal = false;
+                
+                // เช็ค LocalStorage (เฉพาะของ User นี้ หรือ Guest)
+                const localData = localStorage.getItem(STORAGE_KEY);
+                if (localData && !storedUserId) { 
+                    // ⚠️ สำคัญ: ถ้าเป็น User ที่ล็อกอินแล้ว เราจะไม่เชื่อ LocalStorage เก่าๆ ที่อาจเป็นของคนอื่น
+                    // เราจะเชื่อเฉพาะกรณี Guest หรือ ถ้าเรามั่นใจว่า LocalStorage นี้เป็นของเขาจริงๆ (ซึ่งเราแยก Key แล้ว)
+                    // แต่เพื่อความชัวร์ สำหรับ User ใหม่ ให้ Generate ใหม่เลยถ้า DB ว่างเปล่า
+                    
+                    const parsed = JSON.parse(localData);
+                    if (parsed.date === todayStr) {
+                        currentGames = parsed.games;
+                        currentStep = parsed.currentStep || 0;
+                        loadedLocal = true;
+                    }
+                } else if (localData && storedUserId) {
+                     // กรณีมี Key แบบแยก User แล้ว (daily_quiz_progress_user123) ก็ดึงได้
+                     const parsed = JSON.parse(localData);
+                     if (parsed.date === todayStr) {
+                         currentGames = parsed.games;
+                         currentStep = parsed.currentStep || 0;
+                         loadedLocal = true;
+                     }
+                }
+
+                // ถ้าไม่มีเลย -> สร้างใหม่ (เริ่มนับ 1)
+                if (!loadedLocal) {
+                    currentGames = generateDailyGames(todayStr);
+                    currentStep = 0;
+                }
+            }
+
+            // 4. เช็ค State การกลับมาจากเกม (Next Step Logic)
+            const action = searchParams.get('action');
+            const playedStepStr = searchParams.get('playedStep');
+            const playedStep = playedStepStr ? parseInt(playedStepStr, 10) : -1;
+            
+            if (action === 'next' && playedStep === currentStep && currentStep < 4) {
+                const nextStep = currentStep + 1;
+                currentStep = nextStep;
+
+                if (nextStep === 4) {
+                    if (!currentHistory.includes(todayStr)) {
+                        currentHistory.push(todayStr);
+                        currentStreak = calculateStreak(currentHistory, todayStr);
+                        
+                        // บันทึกโบนัสคะแนน
+                        if (storedUserId) {
+                            const bonusPoints = (currentStreak % 7 === 0) ? 500 : 150;
+                            fetch('/api/game/history', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId: storedUserId, gameType: 'daily-quiz-bonus', score: bonusPoints })
+                            }).catch(console.error);
+                        }
+                        setTimeout(() => runFireworks(), 500);
+                        setTimeout(() => setShowCard(true), 100);
+                    }
+                }
+                
+                // ✅ บันทึกสถานะล่าสุดลง DB และ Local (แบบแยก User)
+                await saveData(todayStr, currentGames, nextStep, currentHistory, currentStreak, currentCycleStart, storedUserId);
+                router.replace('/games/daily-quiz');
+            } else {
+                // Sync ข้อมูลปัจจุบัน
+                await saveData(todayStr, currentGames, currentStep, currentHistory, currentStreak, currentCycleStart, storedUserId);
+            }
+
+            setGames(currentGames);
+            setStep(currentStep);
+            setHistory(currentHistory);
+            setStreakCount(currentStreak);
+            setCycleStartDate(currentCycleStart);
+            setIsLoaded(true);
+            if(currentStep === 4) setTimeout(() => setShowCard(true), 100);
+        };
+
+        initialize();
+    }, [searchParams, router]);
 
   const runFireworks = () => {
     const duration = 3 * 1000;
@@ -231,25 +318,12 @@ export default function DailyQuizPage() {
     }, 250);
   };
 
-  const runSideCannons = () => {
-    const end = Date.now() + (1 * 1000);
-    const colors = ['#bb0000', '#ffffff'];
-    (function frame() {
-      confetti({ particleCount: 2, angle: 60, spread: 55, origin: { x: 0 }, colors: colors });
-      confetti({ particleCount: 2, angle: 120, spread: 55, origin: { x: 1 }, colors: colors });
-      if (Date.now() < end) requestAnimationFrame(frame);
-    }());
-  };
-
   const handleStartMission = () => {
         const nextStep = 1;
         setStep(nextStep);
         const todayStr = new Date().toDateString();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            date: todayStr,
-            games: games,
-            currentStep: nextStep
-        }));
+        // ✅ บันทึก
+        saveData(todayStr, games, nextStep, history, streakCount, cycleStartDate || todayStr, userId);
     };
 
     const handleOpenGame = () => {
@@ -259,7 +333,7 @@ export default function DailyQuizPage() {
         }
     };
 
-  // --- Render Bar: ปรับให้เป็นปฏิทิน (Calendar Style) ตามคำขอ ---
+  // --- Render Bar ---
   const renderTimeBasedBar = () => {
     if (!cycleStartDate) return null;
 
@@ -269,7 +343,6 @@ export default function DailyQuizPage() {
     today.setHours(0,0,0,0);
     const historyTimes = history.map(d => new Date(d).setHours(0,0,0,0));
 
-    // ชื่อวันภาษาไทย
     const thaiDays = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
 
     return (
@@ -282,7 +355,6 @@ export default function DailyQuizPage() {
             </div>
             
             <div className="flex justify-between items-center relative px-2">
-                {/* เส้นเชื่อม (Progress Line) */}
                 <div className="absolute top-[1.25rem] left-0 w-full h-1.5 bg-gray-100 -z-0 rounded-full"></div>
                 
                 {[0, 1, 2, 3, 4, 5, 6].map((offset) => {
@@ -294,10 +366,9 @@ export default function DailyQuizPage() {
                     const todayTime = today.getTime();
                     const isPlayed = historyTimes.includes(targetTime);
                     
-                    // ใช้เลขลำดับ 1-7 แทนวันที่
-                    const dayNumber = offset + 1; // 1, 2, 3, 4, 5, 6, 7
-                    const dayIndex = targetDate.getDay(); // 0-6
-                    const dayName = thaiDays[dayIndex];   // อา., จ.
+                    const dayNumber = offset + 1; 
+                    const dayIndex = targetDate.getDay(); 
+                    const dayName = thaiDays[dayIndex];   
 
                     let status = 'locked'; 
                     if (targetTime < todayTime) status = isPlayed ? 'done' : 'missed'; 
@@ -305,7 +376,6 @@ export default function DailyQuizPage() {
 
                     return (
                         <div key={offset} className="flex flex-col items-center relative z-10 w-1/7">
-                            {/* วงกลมวันที่ */}
                             <div className={`
                                 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center border-[3px] text-sm md:text-base font-bold transition-all duration-500 mb-1
                                 ${status === 'done' ? 'bg-green-500 border-green-200 text-white shadow-md scale-105' : ''}
@@ -313,14 +383,12 @@ export default function DailyQuizPage() {
                                 ${status === 'current' ? 'bg-white border-blue-500 text-blue-600 shadow-xl ring-4 ring-blue-100 scale-110' : ''}
                                 ${status === 'locked' ? 'bg-white border-gray-200 text-gray-400' : ''}
                             `}>
-                                {/* เงื่อนไขการแสดงผลในวงกลม */}
                                 {status === 'done' && '✓'}
-                                {status === 'missed' && dayNumber} {/* พลาดแล้วก็ยังโชว์เลขลำดับให้รู้ */}
+                                {status === 'missed' && dayNumber}
                                 {status === 'current' && dayNumber}
                                 {status === 'locked' && (offset === 6 ? '🎁' : dayNumber)}
                             </div>
 
-                            {/* ข้อความชื่อวันด้านล่าง (จ., อ., พ.) */}
                             <span className={`text-[10px] md:text-xs font-medium 
                                 ${status === 'current' ? 'text-blue-600 font-bold' : 
                                   status === 'missed' ? 'text-rose-400' : 
@@ -335,12 +403,53 @@ export default function DailyQuizPage() {
     );
   };
 
+  // ✅ 4. เพิ่มหน้าจอปลดล็อกเสียง (สำคัญมากสำหรับ iPad/iPhone)
+    if (!hasInteracted && step !== 4) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-[#7EC8FF] p-4 relative overflow-hidden">
+                <PerfectCloudTheme />
+                <div className="relative z-10 bg-white/95 p-10 rounded-[2.5rem] shadow-2xl text-center max-w-md animate-pop-in border-4 border-white backdrop-blur-md">
+                    <div className="flex flex-col items-center mb-6">
+                        <span className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 shadow-inner animate-bounce mb-4 text-6xl border-4 border-white">🔊</span>
+                        <h1 className="text-4xl font-black text-slate-800 mb-2 drop-shadow-sm">เปิดเสียงเกม</h1>
+                    </div>
+                    <p className="text-slate-600 mb-8 text-xl font-medium leading-relaxed">
+                        เพื่อความสนุกและการฝึกความจำ<br/>กรุณาเปิดเสียงนะครับ
+                    </p>
+                    <div className="flex flex-col gap-4">
+                        <button
+                            onClick={() => {
+                                setHasInteracted(true);
+                                setSoundDisabled(false);
+                                speak("ระบบเสียงพร้อมใช้งานแล้วครับ");
+                            }}
+                            className="w-full py-5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold rounded-2xl text-2xl shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3 border-b-4 border-blue-800"
+                        >
+                            <span className="text-3xl">✅</span>
+                            <span>เริ่มใช้งาน</span>
+                        </button>
+                        <button
+                            onClick={() => {
+                                setHasInteracted(true);
+                                setSoundDisabled(true);
+                            }}
+                            className="w-full py-5 bg-gradient-to-r from-gray-300 to-gray-400 hover:from-gray-400 hover:to-gray-500 text-gray-800 font-bold rounded-2xl text-2xl shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3 border-b-4 border-gray-500"
+                        >
+                            <span className="text-3xl">🚫</span>
+                            <span>ไม่ใช้เสียง</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+  }
+
   if (!isLoaded) return <div className="min-h-screen flex items-center justify-center text-blue-600 font-bold bg-blue-50">กำลังโหลด...</div>;
 
   return (
     <div className="min-h-screen font-sans flex flex-col items-center justify-center p-4 relative overflow-hidden">
         
-        {/* ใส่ Theme ก้อนเมฆ (ส่วน UI ที่เปลี่ยน) */}
+        {/* ใส่ Theme ก้อนเมฆ */}
         <PerfectCloudTheme />
 
         <div className="w-full max-w-3xl relative z-10">
@@ -454,7 +563,8 @@ export default function DailyQuizPage() {
 
                     <button
                         onClick={() => {
-                            localStorage.removeItem(STORAGE_KEY);
+                            // ✅ บันทึกสถานะว่าจบแล้วลง DB
+                            saveData(new Date().toDateString(), games, 4, history, streakCount, cycleStartDate || new Date().toDateString(), userId);
                             setShowCard(false);
                             setTimeout(() => {
                                 setStep(0);
@@ -463,7 +573,7 @@ export default function DailyQuizPage() {
                         }}
                         className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white font-bold text-xl shadow-lg shadow-blue-200 hover:scale-[1.02] transition-all border-b-4 border-[#1D4ED8] active:border-b-0 active:translate-y-1"
                     >
-                         กลับหน้าภารกิจ ➜
+                          กลับหน้าภารกิจ ➜
                     </button>
                 </div>
             )}

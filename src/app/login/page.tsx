@@ -45,15 +45,21 @@ export default function LoginPage() {
       if (res.ok && data.success) {
         const user = data.user || {};
         
-        // 1. เก็บข้อมูล Profile
+        // 1. เก็บข้อมูล Profile ทั่วไป
         localStorage.setItem('profile_username', user.username || usernameTrimmed);
         localStorage.setItem('profile_age', user.age ? String(user.age) : '');
         localStorage.setItem('anonId', user.anonId || `anon_${usernameTrimmed}`);
+        
+        // เก็บวันที่สมัครสมาชิก
+        if (user.createdAt) {
+          localStorage.setItem('profile_createdAt', user.createdAt);
+        }
 
-        // ✅ 2. (เพิ่มใหม่) เก็บ userId เพื่อใช้ผูกกับประวัติการเล่นใน Database
+        // ✅✅✅ ส่วนที่เพิ่ม: เก็บ User ID สำคัญมาก! ถ้าไม่มีบรรทัดนี้คะแนนจะไม่บันทึก ✅✅✅
         if (user.id) {
             localStorage.setItem('userId', user.id);
         }
+        // -----------------------------------------------------------------------
 
         if (data.token) {
             document.cookie = `token=${data.token}; path=/; max-age=86400; secure; HttpOnly=true; SameSite=Lax`;

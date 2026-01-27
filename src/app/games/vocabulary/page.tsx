@@ -70,10 +70,13 @@ export default function VocabularyGame() {
   const { speak } = useTTS();
   const hasSpokenWelcome = useRef(false);
   const [hasInteracted, setHasInteracted] = useState(false); // เช็คว่ากดปุ่มเริ่มเสียงยัง
+  // ✅ แทรกโค้ดนี้ลงไปบรรทัดถัดมาได้เลยครับ
+  useEffect(() => {
+    if (isDailyMode) {
+        setHasInteracted(true);
+    }
+  }, [isDailyMode]);
   const [soundDisabled, setSoundDisabled] = useState(false); // เพิ่ม state สำหรับปิดเสียงบรรยาย (TTS)
-
-  // ✅ เพิ่ม State สำหรับกันการบันทึกซ้ำ
-  const [isSaving, setIsSaving] = useState(false);
 
   const [displayedWords, setDisplayedWords] = useState<VocabularyWord[]>([])
   const [selectionOptions, setSelectionOptions] = useState<VocabularyWord[]>([])
@@ -90,6 +93,7 @@ export default function VocabularyGame() {
   const [showDisplayTimer, setShowDisplayTimer] = useState(false)
   const [showDemo, setShowDemo] = useState(false)
   const [demoStep, setDemoStep] = useState(0)
+  const [isSaving, setIsSaving] = useState(false)
   const demoTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const formatTime = (seconds: number) => {
@@ -159,6 +163,28 @@ export default function VocabularyGame() {
     }
   }, [gameCompleted, hasInteracted, correctCount, displayedWords, speak, soundDisabled]);
 
+  // ✅ เพิ่ม useEffect สำหรับบันทึกคะแนนเมื่อจบเกม (ไม่บันทึกถ้าเป็น daily mode)
+  useEffect(() => {
+    if (gameCompleted && !isSaving && !isDailyMode && correctCount !== null) {
+      setIsSaving(true);
+      const userId = localStorage.getItem('userId');
+      if (userId) {
+        fetch('/api/game/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: userId,
+            gameType: 'vocabulary',
+            score: correctCount
+          })
+        })
+        .then(res => res.json())
+        .then(data => console.log('Score saved:', data))
+        .catch(err => console.error('Error saving score:', err));
+      }
+    }
+  }, [gameCompleted, isSaving, correctCount, isDailyMode]);
+
   // cleanup demo timeouts
   useEffect(() => {
     return () => {
@@ -170,7 +196,6 @@ export default function VocabularyGame() {
   // ------------------------------
 
   const initializeGame = (level: number = difficulty) => {
-    setIsSaving(false); // ✅ Reset สถานะการบันทึก
     const wordCount = level === 2 ? 15 : 10;
     const words = generateVocabularyWords(level, wordCount)
     const options = generateVocabularyOptions(words, level)
@@ -182,6 +207,7 @@ export default function VocabularyGame() {
     setGameCompleted(false)
     setTotalTime(0)
     setDifficulty(level)
+    setIsSaving(false)
     const previewSeconds = level === 1 ? 75 : 90
     const playLimit = level === 1 ? 90 : 105
     setTimeLimit(Math.min(playLimit, getTimeLimit('vocabulary', level)))
@@ -198,7 +224,6 @@ export default function VocabularyGame() {
   }, [isDailyMode, levelFromQuery, hasInteracted, gameStarted, gameCompleted, initializeGame]);
 
   const startDemo = (level: number = 1) => {
-    setIsSaving(false); // ✅ Reset สถานะการบันทึก
     demoTimeoutsRef.current.forEach(clearTimeout);
     demoTimeoutsRef.current = [];
     setShowDemo(true)
@@ -278,28 +303,6 @@ export default function VocabularyGame() {
     const timer = setInterval(() => { setTotalTime((prev: number) => prev + 1) }, 1000)
     return () => clearInterval(timer)
   }, [gameStarted, gameCompleted, showDisplayTimer])
-
-  // ✅ เพิ่ม useEffect สำหรับบันทึกคะแนนเมื่อจบเกม
-  useEffect(() => {
-    if (gameCompleted && !isSaving && correctCount !== null) {
-      setIsSaving(true);
-      const userId = localStorage.getItem('userId');
-      if (userId) {
-        fetch('/api/game/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: userId,
-            gameType: 'vocabulary',
-            score: correctCount
-          })
-        })
-        .then(res => res.json())
-        .then(data => console.log('Score saved:', data))
-        .catch(err => console.error('Error saving score:', err));
-      }
-    }
-  }, [gameCompleted, isSaving, correctCount]);
 
   useEffect(() => {
     if (!gameStarted || gameCompleted || showDisplayTimer) return
@@ -654,7 +657,7 @@ export default function VocabularyGame() {
             {showWords ? (
               <div className="card text-center mb-8 bg-blue-50 border-4 border-primary-500 p-10 w-full max-w-6xl mx-auto rounded-2xl shadow-lg">
                 <div
-                  className="grid justify-center gap-x-12 gap-y-10 mx-auto"
+                  className="grid justify-center gap-x-12 gap-y-10"
                   style={{
                     gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                     gridAutoFlow: 'row',
@@ -686,60 +689,62 @@ export default function VocabularyGame() {
             )}
           </div>
         ) : gameCompleted ? (
-          <div className="w-full max-w-5xl mx-auto">
-            <div className="bg-white rounded-[2.5rem] shadow-2xl px-20 py-6 md:px-32 md:py-8 text-center min-w-[900px]" style={{ minWidth: 900 }}>
-              <h2 className="text-4xl md:text-5xl font-extrabold text-green-700 mb-2 flex items-center justify-center gap-2">
-                <span className="text-3xl md:text-4xl">🎉</span>
+          <div className="w-full max-w-3xl mx-auto">
+            <div className="card text-center bg-white/95 backdrop-blur-md rounded-[2.5rem] shadow-2xl p-8 md:p-12">
+              <h2 className="text-5xl md:text-6xl font-extrabold text-green-600 mb-8 flex items-center justify-center gap-3">
+                <span className="text-4xl md:text-5xl">🎉</span>
                 <span>ยินดีด้วย!</span>
               </h2>
-              <div className="flex flex-row justify-center gap-12 mb-4 w-full mx-auto">
-                {/* ผลการเล่น */}
-                <div className="bg-blue-50 border border-blue-200 rounded-2xl px-16 py-4 flex flex-col items-center shadow-sm min-w-[360px] mx-2">
-                  <span className="text-3xl mb-1">📖</span>
-                  <span className="text-lg font-bold text-blue-700 mb-1 leading-tight">ผลการเล่น</span>
-                  <span className="text-4xl font-extrabold text-blue-900 mb-1">{correctCount !== null ? `${correctCount}/${displayedWords.length}` : `0/${displayedWords.length}`}</span>
-                  <span className="text-base font-bold text-blue-700">คำ</span>
+              <div className="mb-12 w-full max-w-3xl mx-auto items-stretch">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  {/* ผลการเล่น */}
+                  <div className="bg-gradient-to-br from-blue-200 via-blue-50 to-white rounded-[2.5rem] p-10 flex flex-col items-center shadow-2xl border-2 border-blue-200 min-w-[230px] min-h-[190px] transition-all duration-200 hover:scale-105">
+                    <span className="text-4xl mb-2">📖</span>
+                    <p className="text-2xl font-extrabold text-blue-700 mb-2 tracking-wide drop-shadow">ผลการเล่น</p>
+                    <p className="text-7xl font-extrabold text-blue-900 drop-shadow-lg mb-1">{correctCount !== null ? `${correctCount}/${displayedWords.length}` : `0/${displayedWords.length}`}</p>
+                    <span className="text-2xl font-bold text-blue-500">คำ</span>
+                  </div>
+                  {/* คะแนน */}
+                  <div className="bg-gradient-to-br from-white via-blue-100 to-blue-200 rounded-[2.5rem] p-10 flex flex-col items-center shadow-2xl border-2 border-blue-300 min-w-[230px] min-h-[190px] transition-all duration-200 hover:scale-105">
+                    <span className="text-4xl mb-2">🏆</span>
+                    <span className="text-2xl font-extrabold text-blue-700 mb-2 tracking-wide drop-shadow">คะแนนที่ได้</span>
+                    <span className="text-7xl font-extrabold text-blue-700 drop-shadow-lg">{correctCount ?? 0}</span>
+                    <span className="text-2xl font-bold text-blue-500 mt-1">คะแนน</span>
+                  </div>
                 </div>
-                {/* คะแนน */}
-                <div className="bg-blue-50 border border-blue-200 rounded-2xl px-16 py-4 flex flex-col items-center shadow-sm min-w-[360px] mx-2">
-                  <span className="text-3xl mb-1">🏆</span>
-                  <span className="text-lg font-bold text-blue-700 mb-1 leading-tight">คะแนนที่ได้</span>
-                  <span className="text-4xl font-extrabold text-blue-900 mb-1">{correctCount ?? 0}</span>
-                  <span className="text-base font-bold text-blue-700">คะแนน</span>
+                <div className="mt-10">
+                  {/* ใช้เวลา */}
+                  <div className="bg-gradient-to-br from-yellow-100 via-yellow-50 to-white rounded-[2.5rem] p-10 flex flex-col items-center shadow-2xl border-2 border-yellow-200 min-w-[230px] min-h-[190px] transition-all duration-200 hover:scale-105">
+                    <span className="text-4xl mb-2">⏰</span>
+                    <p className="text-2xl font-extrabold text-yellow-700 mb-2 tracking-wide drop-shadow">ใช้เวลา</p>
+                    <p className="text-7xl font-extrabold text-yellow-700 drop-shadow-lg mb-1">{formatTime(totalTime)}</p>
+                  </div>
                 </div>
               </div>
-              <div className="flex justify-center mb-4">
-                {/* ใช้เวลา */}
-                <div className="bg-yellow-50 border border-yellow-200 rounded-2xl px-16 py-4 flex flex-col items-center shadow-sm min-w-[360px]">
-                  <span className="text-3xl mb-1"><span role="img" aria-label="alarm">⏰</span></span>
-                  <span className="text-lg font-bold text-yellow-700 mb-1 leading-tight">ใช้เวลา</span>
-                  <span className="text-4xl font-extrabold text-orange-700 mb-1">{formatTime(totalTime)}</span>
-                </div>
-              </div>
-              <div className="flex flex-col items-center gap-4 mt-4 w-full">
-                <button
-                  onClick={() => {
-                    // ไปหน้าระดับยาก
-                    window.location.href = '/games/vocabulary?level=hard';
-                  }}
-                  className="w-full max-w-sm mx-auto py-4 bg-green-500 hover:bg-green-600 text-white text-2xl font-extrabold rounded-2xl shadow-lg transition-transform hover:scale-105"
+              {isDailyMode ? (
+                <button 
+                  onClick={() => router.push(`/games/daily-quiz?action=next&playedStep=${dailyStep}`)} 
+                  className="w-full py-5 bg-green-500 hover:bg-green-600 text-white text-3xl font-extrabold rounded-2xl shadow-lg transition-transform hover:scale-105 mt-2"
                 >
-                  ถัดไป(ยาก)
+                  ✅ ผ่านด่าน (ไปต่อ)
                 </button>
-                <button
-                  onClick={() => {
-                    setGameStarted(false);
-                    setGameCompleted(false);
-                    setSelectedWords([]);
-                    setCorrectCount(null);
-                    setTotalTime(0);
-                    setShowWords(true);
-                  }}
-                  className="w-full max-w-sm mx-auto py-4 bg-blue-100 hover:bg-blue-200 text-blue-700 text-2xl font-extrabold rounded-2xl shadow transition-all"
-                >
-                  กลับหน้าเมนู
-                </button>
-              </div>
+              ) : (
+                <div className="flex gap-4 flex-col md:flex-row mt-2">
+                  <button
+                    onClick={() => {
+                      setGameStarted(false);
+                      setGameCompleted(false);
+                      setSelectedWords([]);
+                      setCorrectCount(null);
+                      setTotalTime(0);
+                      setShowWords(true);
+                    }}
+                    className="w-full py-5 bg-blue-100 hover:bg-blue-200 text-blue-700 text-3xl font-extrabold rounded-2xl shadow transition-all"
+                  >
+                    กลับหน้าเมนู
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ) : null}
