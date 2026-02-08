@@ -1,3 +1,27 @@
+/* Floating leaves and bubbles animation */
+@keyframes leafFloat {
+  0% { transform: translateY(0) rotate(-8deg); }
+  100% { transform: translateY(-30px) rotate(8deg); }
+}
+@keyframes bubbleFloat {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-40px) scale(1.08); }
+}
+.animate-leaf-float-slow {
+  animation: leafFloat 7s ease-in-out infinite alternate;
+}
+.animate-leaf-float {
+  animation: leafFloat 5s ease-in-out infinite alternate;
+}
+.animate-leaf-float-delayed {
+  animation: leafFloat 6.5s 1.5s ease-in-out infinite alternate;
+}
+.animate-bubble-float {
+  animation: bubbleFloat 8s ease-in-out infinite alternate;
+}
+.animate-bubble-float-delayed {
+  animation: bubbleFloat 10s 2s ease-in-out infinite alternate;
+}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -125,6 +149,29 @@ body {
   }
 }
 
+@keyframes bounce-once {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.02);
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-in-out;
 }
@@ -135,4 +182,12 @@ body {
 
 .animate-bounce-gentle {
   animation: bounce-gentle 1s infinite;
+}
+
+.animate-bounce-once {
+  animation: bounce-once 0.6s ease-in-out;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
 }

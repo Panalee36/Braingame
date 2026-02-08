@@ -17,61 +17,77 @@ export function addMemoryImage(label: string, filename: string) {
 // Utility functions for game logic
 
 // Color Matching Game Utilities
-const COLORS = [
-  { name: 'แดง', hex: '#EF4444', displayName: 'Red' },
-  { name: 'เขียว', hex: '#22C55E', displayName: 'Green' },
-  { name: 'เหลือง', hex: '#FBBF24', displayName: 'Yellow' },
-  { name: 'น้ำเงิน', hex: '#3B82F6', displayName: 'Blue' },
-  { name: 'ม่วง', hex: '#A855F7', displayName: 'Purple' },
-  { name: 'ส้ม', hex: '#F97316', displayName: 'Orange' },
-  { name: 'ชมพู', hex: '#EC4899', displayName: 'Pink' },
-  { name: 'ฟ้า', hex: '#06B6D4', displayName: 'Cyan' },
-]
-
 export const generateColorCards = (difficulty: number) => {
-  const pairCount = Math.min(4 + difficulty, 8)
-  const selectedColors = COLORS.slice(0, pairCount)
-  const cards = []
-  let id = 0
+  // สำหรับระดับง่าย (difficulty 1) - 6 คู่ สี
+  if (difficulty === 1) {
+    const easyColors = [
+      { color: '#ef4444', name: 'แดง' },           // Red
+      { color: '#22c55e', name: 'เขียว' },         // Green
+      { color: '#3b82f6', name: 'น้ำเงิน' },       // Blue
+      { color: '#f97316', name: 'ส้ม' },           // Orange
+      { color: '#FFE135', name: 'เหลือง' },        // Yellow
+      { color: '#8b5cf6', name: 'ม่วง' },          // Violet
+    ];
 
-  selectedColors.forEach((color) => {
-    for (let i = 0; i < 2; i++) {
-      cards.push({
-        id: `color-${id++}`,
-        color: color.hex,
-        displayName: color.name,
-        isFlipped: false,
-        isMatched: false,
-      })
-    }
-  })
+    // สร้างไพ่ 2 ใบต่อสี
+    const cards = easyColors.flatMap((c, i) => [
+      { id: `c${i}-a`, color: c.color, colorName: c.name },
+      { id: `c${i}-b`, color: c.color, colorName: c.name },
+    ]);
 
-  return cards.sort(() => Math.random() - 0.5)
-}
-
-// Math Game Utilities
-export const generateMathQuestion = (difficulty: number) => {
-  const level = Math.min(difficulty, 5)
-    let min = 1, max = 10;
-    if (level === 2) { min = 10; max = 50; }
-    if (level === 3) { min = 20; max = 100; }
-    if (level === 4) { min = 50; max = 200; }
-    if (level === 5) { min = 10; max = 99; } // ด่าน 5 ใช้เลขหลักสิบ
-    const num1 = Math.floor(Math.random() * (max - min + 1)) + min;
-    const num2 = Math.floor(Math.random() * (max - min + 1)) + min;
-
-  const correctAnswer = num1 + num2
-  const options = [correctAnswer]
-
-  // Generate wrong answers
-  while (options.length < 4) {
-      const wrongAnswer = correctAnswer + (Math.random() - 0.5) * (max * 0.5)
-    const rounded = Math.floor(wrongAnswer)
-    if (rounded > 0 && !options.includes(rounded)) {
-      options.push(rounded)
-    }
+    // สุ่มลำดับการ์ด
+    return cards.sort(() => Math.random() - 0.5);
   }
 
+  // สำหรับระดับยาก (difficulty 2) - 12 คู่ สี
+  if (difficulty === 2) {
+    const hardColors = [
+      { color: '#ef4444', name: 'แดง' },              // Red
+      { color: '#003E00', name: 'เขียวเข้ม' },            // Green
+      { color: '#3b82f6', name: 'น้ำเงิน' },          // Blue
+      { color: '#f97316', name: 'ส้ม' },              // Orange
+      { color: '#FFE135', name: 'เหลือง' },           // Yellow
+      { color: '#8b5cf6', name: 'ม่วง' },             // Violet
+      { color: '#7E481C', name: 'น้ำตาล' },        // Yellow-Orange
+      { color: '#FF8FAB', name: 'ชมพู' },      // Blue-Violet
+      { color: '#fff5c3', name: 'ส้มแดง' },           // Red-Orange
+      { color: '#14b8a6', name: 'เขียวน้ำเงิน' },     // Blue-Green
+      { color: '#84cc16', name: 'เขียวเหลือง' },      // Yellow-Green
+      { color: '#A9A9A9', name: 'เทา' },          // Red-Violet
+    ];
+
+    // สร้างไพ่ 2 ใบต่อสี
+    const cards = hardColors.flatMap((c, i) => [
+      { id: `c${i}-a`, color: c.color, colorName: c.name },
+      { id: `c${i}-b`, color: c.color, colorName: c.name },
+    ]);
+
+    // สุ่มลำดับการ์ด
+    return cards.sort(() => Math.random() - 0.5);
+  }
+
+  // Fallback for any other difficulty (should not reach here)
+  return [];
+};
+
+export const generateMathQuestion = (difficulty: number) => {
+  const level = Math.min(difficulty, 5);
+  let min = 1, max = 10;
+  if (level === 2) { min = 10; max = 50; }
+  if (level === 3) { min = 20; max = 100; }
+  if (level === 4) { min = 50; max = 200; }
+  if (level === 5) { min = 10; max = 99; }
+  const num1 = Math.floor(Math.random() * (max - min + 1)) + min;
+  const num2 = Math.floor(Math.random() * (max - min + 1)) + min;
+  const correctAnswer = num1 + num2;
+  const options = [correctAnswer];
+  while (options.length < 4) {
+    const wrongAnswer = correctAnswer + (Math.random() - 0.5) * (max * 0.5);
+    const rounded = Math.floor(wrongAnswer);
+    if (rounded > 0 && !options.includes(rounded)) {
+      options.push(rounded);
+    }
+  }
   return {
     id: `math-${Date.now()}`,
     num1,
@@ -79,7 +95,7 @@ export const generateMathQuestion = (difficulty: number) => {
     operation: '+' as const,
     correctAnswer,
     options: options.sort(() => Math.random() - 0.5),
-  }
+  };
 }
 
 // Sequential Memory Game Utilities
@@ -123,35 +139,147 @@ const OBJECTS_FOR_MEMORY = [
   { label: 'ส้มจริง', image: '/memory-images/orange.jpg' },
   { label: 'กล้วยจริง', image: '/memory-images/banana.jpg' },
   { label: 'ภาพถ่าย', image: '/memory-images/photo' },
-  { label: 'ดอกเดซี่', image: '/memory-images/photo' },
+  { label: 'ทานตะวัน', image: '/memory-images/sunflower.jpg' },
 ]
 
-export const generateSequentialImages = (difficulty: number) => {
-  // สุ่มเฉพาะ emoji เท่านั้น ไม่ใช้รูปภาพ asset
-  const count = Math.min(4 + difficulty, 8)
-  const pool = OBJECTS_FOR_MEMORY.filter(obj => obj.emoji)
-  const selectedObjs = pool.sort(() => Math.random() - 0.5).slice(0, count)
-  const selected = selectedObjs.map((obj, index) => ({
+// รายชื่อไฟล์รูปจริงใน memory-images/sunflower/ (ตัวอย่าง UUID)
+const SUNFLOWER_IMAGES = [
+  'daisy',
+  'frangipani',
+  'kaewmankorn',
+  'sapraros',
+  'apple',
+  'bird',
+  'blueberry',
+  'butterfly',
+  'cat',
+  'east side',
+  'elephant',
+  'fish',
+  'grape',
+  'hibiscus',
+  'jasmins',
+  'leaf',
+  'light blue',
+  'lotus',
+  'mangosteen',
+  'matermelon',
+  'monkey',
+  'moon',
+  'orange',
+  'peacock',
+  'pomelo',
+  'rabbit',
+  'rose',
+  'sheep',
+  'sun',
+  'tige',
+  'tomato',
+  'tree',
+];
+
+export const generateSequentialImages = (difficulty: number, countOverride?: number) => {
+  // ใช้รูปจริงทั้งหมดจาก memory-images/sunflower/
+  const count = countOverride ?? 6;
+  const selectedFiles = SUNFLOWER_IMAGES.sort(() => Math.random() - 0.5).slice(0, count);
+  const selected = selectedFiles.map((filename, index) => ({
     id: `img-${index}`,
-    imageUrl: obj.emoji,
-    label: obj.label,
+    imageUrl: `/memory-images/sunflower/${filename}.jpg`,
+    label: filename,
     order: index,
-    isAsset: false
-  }))
-  return selected
+    isAsset: true
+  }));
+  return selected;
 }
 
 // Animal Sound Game Utilities
-const ANIMALS = [
-  { name: 'หมา', sound: '🐕', label: 'หมา' },
-  { name: 'แมว', sound: '🐱', label: 'แมว' },
-  { name: 'วัว', sound: '🐄', label: 'วัว' },
-  { name: 'ไก่', sound: '🐔', label: 'ไก่' },
-  { name: 'เป็ด', sound: '🦆', label: 'เป็ด' },
-  { name: 'อีกาน', sound: '🐷', label: 'หมู' },
-  { name: 'แกะ', sound: '🐑', label: 'แกะ' },
-  { name: 'ม้า', sound: '🐴', label: 'ม้า' },
-]
+
+export const ANIMALS = [
+  {
+    name: "หมา",
+    label: "หมา",
+    image: "/images/animal pictures/dog.jpg",
+    sound: "/sounds/animal-sound/dog.mp3",
+  },
+  {
+    name: "แมว",
+    label: "แมว",
+    image: "/images/animal pictures/cat.jpg",
+    sound: "/sounds/animal-sound/cat.mp3",
+  },
+  {
+    name: "วัว",
+    label: "วัว",
+    image: "/images/animal pictures/cow.jpg",
+    sound: "/sounds/animal-sound/cow.mp3",
+  },
+  {
+    name: "ไก่",
+    label: "ไก่",
+    image: "/images/animal pictures/chicken.jpg",
+    sound: "/sounds/animal-sound/chicken.mp3",
+  },
+  {
+    name: "เป็ด",
+    label: "เป็ด",
+    image: "/images/animal pictures/duck.jpg",
+    sound: "/sounds/animal-sound/duck.mp3",
+  },
+  {
+    name: "หมู",
+    label: "หมู",
+    image: "/images/animal pictures/pig.jpg",
+    sound: "/sounds/animal-sound/pig.mp3",
+  },
+  {
+    name: "แกะ",
+    label: "แกะ",
+    image: "/images/animal pictures/sheep.jpg",
+    sound: "/sounds/animal-sound/sheep.mp3",
+  },
+  {
+    name: "ม้า",
+    label: "ม้า",
+    image: "/images/animal pictures/horse.jpg",
+    sound: "/sounds/animal-sound/horse.mp3",
+  },
+  {
+    name: "เสือ",
+    label: "เสือ",
+    image: "/images/animal pictures/tiger.jpg",
+    sound: "/sounds/animal-sound/tiger.mp3",
+  },
+  {
+    name: "ช้าง",
+    label: "ช้าง",
+    image: "/images/animal pictures/elephant.jpg",
+    sound: "/sounds/animal-sound/elephant.mp3",
+  },
+  {
+    name: "นก",
+    label: "นก",
+    image: "/images/animal pictures/bird.jpg",
+    sound: "/sounds/animal-sound/bird.mp3",
+  },
+  {
+    name: "ลิง",
+    label: "ลิง",
+    image: "/images/animal pictures/monkey.jpg",
+    sound: "/sounds/animal-sound/monkey.mp3",
+  },
+  {
+    name: "ผึ้ง",
+    label: "ผึ้ง",
+    image: "/images/animal pictures/bee.jpg",
+    sound: "/sounds/animal-sound/bee.mp3",
+  },
+  {
+    name: "จิ้งหรีด",
+    label: "จิ้งหรีด",
+    image: "/images/animal pictures/cricket.jpg",
+    sound: "/sounds/animal-sound/cricket.mp3",
+  },
+];
 
 export const generateAnimalSounds = () => {
   const animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)]
@@ -169,7 +297,7 @@ export const generateAnimalSounds = () => {
       id: `animal-${Date.now()}`,
       name: animal.name,
       soundUrl: animal.sound,
-      imageUrl: animal.sound,
+      imageUrl: animal.image,
     },
     options: options
       .sort(() => Math.random() - 0.5)
@@ -177,7 +305,7 @@ export const generateAnimalSounds = () => {
         id: `option-${i}`,
         name: a.label,
         soundUrl: a.sound,
-        imageUrl: a.sound,
+        imageUrl: a.image,
       })),
   }
 }
@@ -198,39 +326,78 @@ const VOCABULARY_WORDS = [
   'นก',
   'ปลา',
   'ต้นสน',
+  'ขนมปัง',
+  'แว่นตา',
+  'โทรทัศน์',
+  'จักรวาล',
+  'สนามเด็กเล่น',
+  'ต้นกล้า',
   'ดวงอาทิตย์',
   'ดวงจันทร์',
   'ดาว',
   'เครื่องบิน',
   'รถไฟ',
   'เรือ',
+  'แม่น้ำ',
+  'หิมะ',
+  'ฝน',
+  'ฟ้าผ่า',
+  'สวน',
+  'สนามหญ้า',
+  'แก้ว',
+  'นาฬิกา',
+  'โทรศัพท์',
+  'ดอกไม้',
+  'โต๊ะ',
+  'เก้าอี้',
+  'กระเป๋า',
+  'รองเท้า',
+  'หมวก',
+  'เสื้อผ้า',
+  'อาหาร',
+  'ผลไม้',
+  'สนามหญ้า',
+  'ฟ้าผ่า',
+  'รถยนต์',
+  'สนามฟุตบอล',
+  'จักรยาน',
+  'ต้นสน',
 ]
 
-export const generateVocabularyWords = (difficulty: number) => {
-  const count = Math.min(3 + difficulty, 6)
-  const selected = VOCABULARY_WORDS.slice(0, count)
-    .sort(() => Math.random() - 0.5)
-    .map((word, index) => ({
-      id: `word-${index}`,
-      word,
-      imageUrl: undefined,
-    }))
+export const generateVocabularyWords = (difficulty: number, customCount?: number) => {
+  const count = customCount ?? (difficulty > 1 ? 24 : 18)
+  const pool = [...VOCABULARY_WORDS].sort(() => Math.random() - 0.5)
+  const selected = pool.slice(0, Math.min(count, pool.length)).map((word, index) => ({
+    id: `word-${index}`,
+    word,
+    imageUrl: undefined,
+  }))
 
   return selected
 }
 
-export const generateVocabularyOptions = (words: any[], difficulty: number) => {
+export const generateVocabularyOptions = (words: any[], difficulty: number, totalOptions: number = 30) => {
   const options = [...words]
-  const totalOptions = Math.min(6 + difficulty, 10)
+  // Prevent infinite loop: we can only have as many unique options
+  // as the vocabulary pool provides. If the requested total exceeds
+  // the pool size, cap to the pool size.
+  const maxOptions = Math.min(totalOptions, VOCABULARY_WORDS.length)
 
-  while (options.length < totalOptions) {
+  while (options.length < maxOptions) {
     const candidate = VOCABULARY_WORDS[Math.floor(Math.random() * VOCABULARY_WORDS.length)]
+    // Keep options unique until we reach the capped total
     if (!options.find((w) => w.word === candidate)) {
       options.push({
         id: `option-${options.length}`,
         word: candidate,
         imageUrl: undefined,
       })
+    } else {
+      // If all unique words are already included, break to avoid a tight loop
+      // (this happens when words already cover the entire vocabulary pool)
+      if (new Set(options.map((w) => w.word)).size >= VOCABULARY_WORDS.length) {
+        break
+      }
     }
   }
 

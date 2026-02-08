@@ -2,11 +2,25 @@
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
+// ฟังก์ชันเลือกผลไม้ emoji จากชื่อผู้ใช้ (เดียวกับ profile page)
+const getFruitEmoji = (username: string): string => {
+  const fruits = ['🍎', '🍊', '🍌', '🍋', '🍉', '🍇', '🍓', '🍒', '🍑', '🥝', '🍍', '🥑', '🍈', '🍐'];
+  
+  // Hash username เพื่อให้ได้ผลไม้เดียวกันทุกครั้ง
+  let hash = 0;
+  for (let i = 0; i < username.length; i++) {
+    const char = username.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  
+  const index = Math.abs(hash) % fruits.length;
+  return fruits[index];
+};
+
 export default function WelcomePage() {
   const [username, setUsername] = useState<string | null>(null);
-  const avatarUrl = username 
-    ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}&mouth=smile&eyebrows=default&eyes=happy` 
-    : null;
+  const [fruitEmoji, setFruitEmoji] = useState<string>('🍎');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -14,8 +28,10 @@ export default function WelcomePage() {
         const storedUsername = localStorage.getItem('profile_username');
         if (storedUsername) {
           setUsername(storedUsername);
+          setFruitEmoji(getFruitEmoji(storedUsername));
         } else {
           setUsername(null);
+          setFruitEmoji('🍎');
         }
       };
       checkProfile();
@@ -38,7 +54,7 @@ export default function WelcomePage() {
     },
     {
       id: 'fast-math',
-      title: 'เกมบวกเลข',
+      title: 'บวกลบเลข',
       description: 'ฝึกการคิดคำนวณไว',
       icon: '🔢',
       bgGradient: 'from-orange-100 to-amber-100',
@@ -105,21 +121,30 @@ export default function WelcomePage() {
 
           <Link 
             href="/profile" 
-            className="flex items-center gap-4 bg-blue-50 hover:bg-blue-100 px-6 py-3 md:px-8 md:py-4 rounded-full transition-all duration-200 border-2 border-blue-200 hover:border-blue-400 shadow-sm hover:shadow-md w-full md:w-auto min-w-[280px] justify-center md:justify-start"
+            className={`flex items-center gap-4 px-6 py-3 md:px-8 md:py-4 rounded-full transition-all duration-200 border-2 shadow-sm hover:shadow-md w-full md:w-auto min-w-[280px] justify-center md:justify-start ${
+              username 
+                ? 'bg-blue-50 hover:bg-blue-100 border-blue-200 hover:border-blue-400' 
+                : 'bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-400'
+            }`}
           >
-             {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarUrl} alt="Avatar" className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-white border-2 border-white shadow-sm" />
-             ) : (
-                <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-blue-200 flex items-center justify-center text-3xl border-2 border-white shadow-sm">👤</div>
-             )}
+             <div className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-4xl md:text-5xl border-2 border-white shadow-sm ${
+               username
+                 ? 'bg-gradient-to-br from-yellow-100 to-orange-100'
+                 : 'bg-white'
+             }`}>
+               {username ? fruitEmoji : '👤'}
+             </div>
             <div className="text-left">
-              <p className="text-sm md:text-base text-slate-500 font-medium mb-0.5">สวัสดีครับ,</p>
-              <p className="text-xl md:text-2xl font-bold text-blue-700 truncate max-w-[180px]">
-                {username || 'ผู้เยี่ยมชม'}
+              <p className={`text-sm md:text-base font-medium mb-0.5 ${username ? 'text-slate-500' : 'text-slate-400'}`}>
+                {username ? 'สวัสดีครับ,' : 'ยังไม่ได้ล็อกอิน'}
+              </p>
+              <p className={`text-xl md:text-2xl font-bold truncate max-w-[180px] ${
+                username ? 'text-blue-700' : 'text-gray-500'
+              }`}>
+                {username || 'กรุณาล็อกอิน'}
               </p>
             </div>
-            <div className="text-blue-300 text-2xl ml-auto pl-2">➔</div>
+            <div className={`text-2xl ml-auto pl-2 ${username ? 'text-blue-300' : 'text-gray-300'}`}>➔</div>
           </Link>
         </div>
       </header>

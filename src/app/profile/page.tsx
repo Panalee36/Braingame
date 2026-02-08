@@ -1,284 +1,432 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
-// --- Interface ---
-interface GameStatistic {
-  key: string;
-  gameType: string;
+// Interface สำหรับข้อมูลประวัติการเล่น
+interface GameStat {
+  id: string;
+  name: string;
+  icon: string;
+  key: string; // key สำหรับ filter ข้อมูลจาก API
+  color: string;
   gamesPlayed: number;
-  averageScore: number;
   highScore: number;
   lastPlayed: string;
-  icon: string; // เพิ่ม icon string เพื่อความง่ายในการแสดงผล
 }
 
-interface HistoryItem {
+// Interface สำหรับประวัติการเล่นแต่ละครั้ง
+interface GameHistory {
+  _id: string;
+  userId: string;
+  gameType: string;
   score: number;
-  date: string;
+  createdAt: string;
 }
 
-// --- Logout Logic ---
-const handleLogout = () => {
-  document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-  localStorage.removeItem('profile_username');
-  localStorage.removeItem('profile_age');
-  localStorage.removeItem('anonId');
+// ฟังก์ชันเลือกผลไม้ emoji จากชื่อผู้ใช้
+const getFruitEmoji = (username: string): string => {
+  const fruits = ['🍎', '🍊', '🍌', '🍋', '🍉', '🍇', '🍓', '🍒', '🍑', '🥝', '🍍', '🥑', '🍈', '🍐'];
   
-  const keysToRemove = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && (key.startsWith('stat_'))) {
-      keysToRemove.push(key);
-    }
+  // Hash username เพื่อให้ได้ผลไม้เดียวกันทุกครั้ง
+  let hash = 0;
+  for (let i = 0; i < username.length; i++) {
+    const char = username.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
   }
-  keysToRemove.forEach((key) => localStorage.removeItem(key));
+  
+  const index = Math.abs(hash) % fruits.length;
+  return fruits[index];
 };
 
 export default function ProfilePage() {
-  // เพิ่ม icon emoji เข้าไปในข้อมูลเริ่มต้น
-  const [statistics, setStatistics] = useState<GameStatistic[]>([
-    { key: 'color-matching', gameType: 'เกมจับคู่สี', gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-', icon: '🎨' },
-    { key: 'fast-math', gameType: 'เกมบวกเลข', gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-', icon: '➕' },
-    { key: 'sequential-memory', gameType: 'เกมจำลำดับภาพ', gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-', icon: '🧠' },
-    { key: 'animal-sound', gameType: 'เกมฟังเสียงสัตว์', gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-', icon: '🐶' },
-    { key: 'vocabulary', gameType: 'เกมจำศัพท์', gamesPlayed: 0, averageScore: 0, highScore: 0, lastPlayed: '-', icon: '📚' },
+  const router = useRouter();
+  
+  // State ข้อมูลผู้ใช้
+  const [profile, setProfile] = useState({
+    username: '',
+    age: '',
+    joinedDate: '',
+    fruitEmoji: ''
+  });
+
+  // State สถิติและประวัติ
+  const [statistics, setStatistics] = useState<GameStat[]>([
+    { id: '1', name: 'เกมจับคู่สี', icon: '🎨', key: 'color-matching', color: 'bg-pink-100 text-pink-600', gamesPlayed: 0, highScore: 0, lastPlayed: '-' },
+    { id: '2', name: 'บวกลบเลข', icon: '🔢', key: 'fast-math', color: 'bg-blue-100 text-blue-600', gamesPlayed: 0, highScore: 0, lastPlayed: '-' },
+    { id: '3', name: 'เกมจำลำดับภาพ', icon: '🖼️', key: 'sequential-memory', color: 'bg-purple-100 text-purple-600', gamesPlayed: 0, highScore: 0, lastPlayed: '-' },
+    { id: '4', name: 'เกมฟังเสียงสัตว์', icon: '🐕', key: 'animal-sound', color: 'bg-green-100 text-green-600', gamesPlayed: 0, highScore: 0, lastPlayed: '-' },
+    { id: '5', name: 'เกมจำศัพท์', icon: '📚', key: 'vocabulary', color: 'bg-yellow-100 text-yellow-600', gamesPlayed: 0, highScore: 0, lastPlayed: '-' },
   ]);
 
-  const [gameHistories, setGameHistories] = useState<Record<string, HistoryItem[]>>({});
-  const [anonId, setAnonId] = useState<string | null>(null);
-  const [username, setUsername] = useState<string | null>(null);
-  const [age, setAge] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
-  
-  // State สำหรับเปิด/ปิด ดูประวัติ
-  const [expandedGame, setExpandedGame] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedGame, setSelectedGame] = useState<GameStat | null>(null);
+  const [gameHistoryDetail, setGameHistoryDetail] = useState<GameHistory[]>([]);
 
-  const router = useRouter();
-
-  // 1. โหลดข้อมูล History
+  // โหลดข้อมูลเมื่อเข้าหน้าเว็บ
   useEffect(() => {
-    const histories: Record<string, HistoryItem[]> = {};
-    statistics.forEach((stat) => {
-      const raw = localStorage.getItem(`stat_${stat.key}_history`);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          histories[stat.key] = Array.isArray(parsed) ? parsed.reverse() : [];
-        } catch {
-          histories[stat.key] = [];
-        }
-      } else {
-        histories[stat.key] = [];
-      }
-    });
-    setGameHistories(histories);
-  }, []);
-
-  // 2. Check Auth
-  useEffect(() => {
-    const hasToken = document.cookie.split(';').some((item) => item.trim().startsWith('token='));
-    const hasLocalProfile = typeof window !== 'undefined' && (localStorage.getItem('profile_username') || localStorage.getItem('anonId'));
-    
-    if (!hasToken && !hasLocalProfile) {
-      router.replace('/login');
+    // 0. ตรวจสอบว่า User ได้ Login หรือไม่
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      // ถ้าไม่มี userId แสดงว่ายังไม่ได้ Login ให้ Redirect ไปหน้า Login
+      router.push('/login');
       return;
     }
-    setReady(true);
-  }, [router]);
 
-  // 3. Load Stats & Profile
-  useEffect(() => {
-    setAnonId(localStorage.getItem('anonId'));
-    setUsername(localStorage.getItem('profile_username'));
-    setAge(localStorage.getItem('profile_age'));
+    // 1. โหลดข้อมูล Profile เบื้องต้นจาก localStorage
+    const storedUsername = localStorage.getItem('profile_username');
+    const storedAge = localStorage.getItem('profile_age');
+    
+    // ใช้วันที่สมัครจริง (profile_joinedDate) ถ้ามี ถ้าไม่มีก็สร้างใหม่และบันทึก
+    let joinedDate = localStorage.getItem('profile_joinedDate');
+    if (!joinedDate) {
+      // ถ้ายังไม่เคยบันทึก ให้ใช้วันนี้และบันทึกลง localStorage
+      const today = new Date();
+      joinedDate = today.toISOString();
+      localStorage.setItem('profile_joinedDate', joinedDate);
+    }
+    // แปลงเป็นวันที่แบบไทย
+    const joinedDateObj = new Date(joinedDate);
+    const formattedJoinedDate = joinedDateObj.toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+    if (storedUsername) {
+      setProfile(prev => ({
+        ...prev,
+        username: storedUsername,
+        age: storedAge || '',
+        joinedDate: formattedJoinedDate,
+        fruitEmoji: getFruitEmoji(storedUsername)
+      }));
+    }
 
-    setStatistics((prevStats) =>
-      prevStats.map((stat) => {
-        const raw = localStorage.getItem(`stat_${stat.key}`);
-        if (!raw) return stat;
-        try {
-          const data = JSON.parse(raw);
-          return {
-            ...stat,
-            gamesPlayed: Number(data.gamesPlayed) || 0,
-            averageScore: Number(data.averageScore) || 0,
-            highScore: Number(data.highScore) || 0,
-            lastPlayed: data.lastPlayed || '-',
-          };
-        } catch {
-          return stat;
+    // 2. ดึงประวัติการเล่นจาก Database
+    const fetchHistory = async () => {
+        const userId = localStorage.getItem('userId'); // ดึง ID คนที่ล็อกอินอยู่
+        if (!userId) {
+            setIsLoading(false);
+            return;
         }
-      })
-    );
+
+        try {
+            const res = await fetch(`/api/game/history?userId=${userId}`);
+            const data = await res.json();
+
+            if (data.success) {
+                const historyData = data.history; // ข้อมูลดิบทั้งหมดจาก DB
+                
+                // คำนวณสถิติใหม่จากข้อมูลที่ดึงมา
+                setStatistics(prevStats => prevStats.map(stat => {
+                    // กรองเอาเฉพาะเกมนั้นๆ
+                    const gameLogs = historyData.filter((h: any) => h.gameType === stat.key);
+                    const gamesPlayed = gameLogs.length;
+                    // หาคะแนนสูงสุด (ถ้าไม่มีข้อมูลให้เป็น 0)
+                    let highScore = gameLogs.length > 0 
+                      ? Math.max(...gameLogs.map((h: any) => Number(h.score))) 
+                      : 0;
+                    // จำกัดคะแนนสูงสุดของ animal-sound ไม่เกิน 5
+                    if (stat.key === 'animal-sound') {
+                      highScore = Math.min(highScore, 5);
+                    }
+                    // หาวันที่เล่นล่าสุด
+                    const lastPlayedDate = gameLogs.length > 0 ? new Date(gameLogs[0].createdAt) : null;
+                    const lastPlayedStr = lastPlayedDate 
+                      ? lastPlayedDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) 
+                      : '-';
+                    return {
+                      ...stat,
+                      gamesPlayed,
+                      highScore,
+                      lastPlayed: lastPlayedStr,
+                    };
+                }));
+            }
+        } catch (error) {
+            console.error("Failed to load history", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    fetchHistory();
   }, []);
 
-  const onLogout = useCallback(() => {
-    handleLogout();
-    router.replace('/login');
-  }, [router]);
-
-  const toggleHistory = (key: string) => {
-    setExpandedGame(expandedGame === key ? null : key);
+  // ฟังก์ชันสำหรับคลิกดูประวัติการเล่นเกมนั้นๆ
+  const handleGameClick = async (game: GameStat) => {
+    setSelectedGame(game);
+    setIsLoading(true);
+    
+    try {
+      const userId = localStorage.getItem('userId');
+      const res = await fetch(`/api/game/history?userId=${userId}`);
+      const data = await res.json();
+      
+      if (data.success) {
+        // กรองเฉพาะประวัติเกมที่เลือก
+        const filteredHistory = data.history.filter((h: GameHistory) => h.gameType === game.key);
+        setGameHistoryDetail(filteredHistory);
+      }
+    } catch (error) {
+      console.error("Failed to load game history detail", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // --- 💡 ปรับปรุง Avatar URL ---
-  // ใช้ 'avataaars' ให้ดูเป็นคนมากขึ้น และบังคับให้ยิ้ม (mouth=smile) เสมอ
-  const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username || 'user'}&mouth=smile&eyebrows=default&eyes=happy`;
+  const handleBackToOverview = () => {
+    setSelectedGame(null);
+    setGameHistoryDetail([]);
+  };
 
-  if (!ready) return <div className="min-h-screen flex items-center justify-center text-xl text-blue-600">กำลังโหลดข้อมูล...</div>;
+  const handleLogout = () => {
+    // เคลียร์ข้อมูลทั้งหมด
+    localStorage.removeItem('userId'); 
+    localStorage.removeItem('profile_username');
+    localStorage.removeItem('profile_age');
+    localStorage.removeItem('daily_quiz_progress_v2'); 
+    
+    // ลบ Cookie Token
+    document.cookie = "token=; path=/; max-age=0";
+    
+    router.push('/login');
+  };
 
-  // คำนวณสถิติ
-  const totalGamesPlayed = statistics.reduce((sum, stat) => sum + stat.gamesPlayed, 0);
-  const activeGamesCount = statistics.filter(s => s.gamesPlayed > 0).length;
-  // const calculatedAverageScore = activeGamesCount > 0 
-  //   ? statistics.reduce((sum, stat) => sum + stat.averageScore, 0) / activeGamesCount 
-  //   : 0;
-  const bestGame = statistics.reduce((prev, current) => (prev.highScore > current.highScore) ? prev : current);
+  if (isLoading) {
+      return <div className="min-h-screen flex items-center justify-center bg-blue-50 text-blue-600 font-bold text-xl">กำลังโหลดข้อมูล...</div>;
+  }
 
-  return (
-    <div className="min-h-screen bg-slate-50 font-sans pb-10">
-      
-      {/* --- ส่วน Header พื้นหลังสีฟ้า --- */}
-      <div className="bg-blue-600 pb-24 pt-10 px-4 md:px-8 rounded-b-[3rem] shadow-lg">
-        <div className="max-w-4xl mx-auto text-center md:text-left flex flex-col md:flex-row items-center gap-6">
-          
-          {/* Avatar กรอบใหญ่ชัดเจน */}
-          <div className="relative">
-            <div className="w-36 h-36 md:w-44 md:h-44 rounded-full bg-white border-4 border-white shadow-xl overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+  // ถ้าเลือกเกมแล้ว แสดงหน้าประวัติเกมนั้นๆ
+  if (selectedGame) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 font-sans pb-20">
+        
+        {/* Header */}
+        <div className="bg-gradient-to-br from-indigo-600 via-blue-600 to-purple-600 pt-12 pb-16 px-6 rounded-b-[3rem] shadow-2xl">
+          <div className="max-w-4xl mx-auto">
+            <button
+              onClick={handleBackToOverview}
+              className="bg-gradient-to-r from-green-400 to-emerald-500 text-white px-8 py-4 rounded-2xl border-4 border-green-200 shadow-xl font-extrabold text-xl flex items-center gap-3 mb-8 transition-all duration-200 hover:from-green-500 hover:to-emerald-600 hover:scale-105 hover:shadow-2xl ring-2 ring-green-100/60"
+            >
+              <span className="text-2xl"></span>
+              <span>กลับหน้าโปรไฟล์</span>
+            </button>
+            
+            <div className="flex items-center gap-6">
+              <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-5xl ${selectedGame.color} bg-white shadow-xl`}>
+                {selectedGame.icon}
+              </div>
+              <div className="text-white">
+                <h1 className="text-4xl font-black drop-shadow-lg">{selectedGame.name}</h1>
+                <p className="text-blue-100 text-lg font-semibold mt-1">ประวัติการเล่นทั้งหมด</p>
+              </div>
             </div>
-            {/* ป้ายอายุแบบชัดๆ */}
-            {age && (
-              <div className="absolute bottom-0 right-0 bg-orange-400 text-white text-lg font-bold px-4 py-1 rounded-full shadow-md border-2 border-white">
-                อายุ {age}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="max-w-4xl mx-auto px-6 -mt-8">
+          {/* สถิติรวม */}
+          <div className="bg-white/90 backdrop-blur-lg rounded-3xl p-8 shadow-xl border-2 border-white/50 mb-8">
+            <div className="flex justify-center gap-20 text-center">
+              <div>
+                <p className="text-2xl text-black font-bold mb-2">จำนวนครั้ง</p>
+                <p className="text-4xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  {selectedGame.gamesPlayed}
+                </p>
+              </div>
+              <div>
+                <p className="text-2xl text-black font-bold mb-2">คะแนนสูงสุด</p>
+                <p className="text-4xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  {selectedGame.highScore}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* รายการประวัติการเล่น */}
+          <div className="space-y-4">
+            <h2 className="text-3xl font-extrabold text-slate-900 mb-6 flex items-center gap-3">
+              <span className="text-3xl">📜</span>
+              รายการประวัติการเล่น
+            </h2>
+            
+            {gameHistoryDetail.length === 0 ? (
+              <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-12 text-center shadow-lg border-2 border-white/50">
+                <span className="text-6xl mb-4 block">🎮</span>
+                <p className="text-slate-500 text-lg font-semibold">ยังไม่มีประวัติการเล่น</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {gameHistoryDetail.map((history, index) => {
+                  const playDate = new Date(history.createdAt);
+                  const formattedDate = playDate.toLocaleDateString('th-TH', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  });
+                  const formattedTime = playDate.toLocaleTimeString('th-TH', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
+
+                  return (
+                    <div
+                      key={history._id}
+                      className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border-2 border-white/50 hover:border-blue-200 transition-all duration-300 hover:shadow-xl"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div>
+                            <p className="text-slate-800 font-extrabold text-3xl">คะแนน: <span className="text-4xl text-purple-700 font-extrabold align-middle">{history.score}</span></p>
+                            <div className="flex items-center gap-4 text-lg text-slate-600 mt-2">
+                              <span className="flex items-center gap-2">
+                                <span className="text-xl">📅</span> <span className="font-bold">{formattedDate}</span>
+                              </span>
+                              <span className="flex items-center gap-2">
+                                <span className="text-xl">🕒</span> <span className="font-bold">{formattedTime}</span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        {history.score === selectedGame.highScore && (
+                          <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white px-7 py-3 rounded-full font-extrabold text-xl shadow-2xl flex items-center gap-3 drop-shadow-lg scale-110">
+                            <span className="text-2xl">🏆</span> สูงสุด
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
-
-          <div className="text-white flex-1">
-            <h1 className="text-3xl md:text-5xl font-bold mb-2 drop-shadow-md">
-              สวัสดีคุณ {username || 'สมาชิก'}!
-            </h1>
-            <p className="text-blue-100 text-lg md:text-xl font-light">
-              ยินดีต้อนรับกลับมาฝึกสมองกันนะครับ
-            </p>
-            <div className="mt-2 text-sm text-blue-200 opacity-80">
-              รหัสสมาชิก: {anonId || '-'}
-            </div>
-          </div>
         </div>
       </div>
+    );
+  }
 
-      <div className="max-w-4xl mx-auto px-4 -mt-16">
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-100 via-blue-50 to-blue-200 font-sans pb-20 relative overflow-hidden">
+      
+      {/* Decorative Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-200/40 to-blue-100/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-blue-100/40 to-blue-50/40 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+      </div>
+
+      {/* Header Profile Card */}
+      <div className="bg-gradient-to-br from-blue-200 via-blue-300 to-blue-100 pt-12 pb-28 px-6 rounded-b-[3rem] shadow-2xl relative overflow-hidden">
+        <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center gap-8 relative z-10">
+            
+            {/* Avatar */}
+            <div className="w-36 h-36 md:w-44 md:h-44 bg-gradient-to-br from-white to-blue-50 rounded-full p-2.5 shadow-2xl relative group">
+                <div className="w-full h-full rounded-full bg-gradient-to-br from-yellow-100 to-orange-100 flex items-center justify-center text-7xl md:text-8xl border-4 border-white overflow-hidden transition-transform duration-500 group-hover:scale-105">
+                    {profile.fruitEmoji || '🍎'}
+                </div>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-yellow-400/20 to-pink-400/20 animate-pulse"></div>
+            </div>
+
+            {/* User Info */}
+            <div className="text-center md:text-left text-white flex-1">
+                <h1 className="text-5xl md:text-6xl font-black mb-3 drop-shadow-lg bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">{profile.username || 'ผู้ใช้งาน'}</h1>
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-blue-50 font-semibold text-base">
+                  {profile.age && (
+                    <span className="bg-gradient-to-br from-pink-100 via-peach-100 to-pink-200 px-5 py-2.5 rounded-xl border-2 border-pink-400 shadow-lg flex items-center gap-2 text-blue-900 font-bold text-lg transition-all duration-300 hover:border-pink-500 hover:shadow-xl" style={{ minWidth: '120px' }}>
+                      <span className="text-xl">🎂</span> อายุ {profile.age} ปี
+                    </span>
+                  )}
+                  <span className="bg-gradient-to-br from-pink-100 via-peach-100 to-pink-200 px-5 py-2.5 rounded-xl border-2 border-pink-400 shadow-lg flex items-center gap-2 text-blue-900 font-bold text-lg transition-all duration-300 hover:border-pink-500 hover:shadow-xl" style={{ minWidth: '160px' }}>
+                    <span className="text-xl">📅</span> สมาชิกตั้งแต่ {profile.joinedDate}
+                  </span>
+                </div>
+            </div>
+
+            {/* ...ปุ่มออกจากระบบด้านบนถูกลบออก... */}
+        </div>
+
+        {/* Decorative Elements */}
+        <div className="absolute top-10 left-10 w-24 h-24 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-10 right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl animate-pulse delay-75"></div>
+        <div className="absolute top-1/2 left-1/4 w-16 h-16 bg-yellow-300/20 rounded-full blur-2xl"></div>
+        <div className="absolute top-1/3 right-1/4 w-20 h-20 bg-pink-300/20 rounded-full blur-2xl"></div>
         
-        {/* --- การ์ดสถิติรวม (เน้นตัวใหญ่ อ่านง่าย) --- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            <div className="bg-white rounded-3xl p-6 shadow-lg flex items-center justify-between border-l-8 border-blue-500">
-                <div>
-                    <p className="text-gray-500 text-lg font-semibold">เล่นไปแล้วทั้งหมด</p>
-                    <p className="text-4xl md:text-5xl font-bold text-slate-800 mt-1">{totalGamesPlayed} <span className="text-xl font-normal text-gray-400">ครั้ง</span></p>
-                </div>
-                <div className="text-5xl opacity-20">🎮</div>
-            </div>
-            <div className="bg-white rounded-3xl p-6 shadow-lg flex items-center justify-between border-l-8 border-green-500">
-                <div>
-                    <p className="text-gray-500 text-lg font-semibold">เกมที่ทำได้ดีที่สุด</p>
-                    <p className="text-2xl md:text-3xl font-bold text-slate-800 mt-1">{bestGame.highScore > 0 ? bestGame.gameType : '-'}</p>
-                    <p className="text-green-600 font-bold text-xl">สูงสุด {bestGame.highScore} คะแนน</p>
-                </div>
-                <div className="text-5xl opacity-20">🏆</div>
-            </div>
-        </div>
+        {/* Pattern Overlay */}
+        <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '30px 30px'}}></div>
+      </div>
 
-        {/* --- ปุ่มเมนูหลัก (ปุ่มใหญ่พิเศษ) --- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-            <Link href="/welcome" className="bg-blue-600 hover:bg-blue-700 text-white text-xl md:text-2xl font-bold py-6 rounded-2xl shadow-lg text-center transition-transform active:scale-95 flex items-center justify-center gap-3">
-                <span>🎮</span> กลับไปหน้าเลือกเกม
-            </Link>
-            <button onClick={onLogout} className="bg-white border-2 border-red-200 text-red-500 hover:bg-red-50 text-xl font-bold py-6 rounded-2xl text-center transition-colors">
-                ออกจากระบบ
-            </button>
-        </div>
-
-        {/* --- รายการประวัติการเล่น --- */}
-        <h2 className="text-2xl md:text-3xl font-bold text-slate-700 mb-6 border-b-2 border-gray-200 pb-2">
-            📋 ประวัติผลการเล่นของคุณ
-        </h2>
-
-        <div className="space-y-5">
-            {statistics.map((stat) => {
-                const isExpanded = expandedGame === stat.key;
-                const history = gameHistories[stat.key] || [];
-                
-                return (
-                    <div key={stat.key} className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-                        {/* ส่วนหัวของ Card (คลิกเพื่อขยาย) */}
-                        <div 
-                            onClick={() => toggleHistory(stat.key)}
-                            className="p-6 cursor-pointer hover:bg-slate-50 transition-colors flex flex-col md:flex-row justify-between items-center gap-4"
-                        >
-                            <div className="flex items-center gap-5 w-full md:w-auto">
-                                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-3xl shadow-inner">
-                                    {stat.icon}
-                                </div>
-                                <div>
-                                    <h3 className="text-2xl font-bold text-slate-800">{stat.gameType}</h3>
-                                    <p className="text-gray-500 text-lg">เล่นล่าสุด: {stat.lastPlayed}</p>
-                                </div>
+      {/* Content Section */}
+      <div className="max-w-6xl mx-auto px-6 -mt-20 relative z-20">
+        
+        {/* Statistics Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+            {statistics.map((stat, index) => (
+                <div 
+                    key={stat.id} 
+                    onClick={() => handleGameClick(stat)}
+                    className="bg-white/80 backdrop-blur-lg rounded-3xl p-7 shadow-xl border-2 border-white/50 hover:border-blue-200 transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 cursor-pointer group relative overflow-hidden"
+                    style={{animationDelay: `${index * 100}ms`}}
+                >
+                    {/* Gradient Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-transparent to-blue-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    
+                    <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-4xl ${stat.color} shadow-lg transform transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6`}>
+                                {stat.icon}
                             </div>
-
-                            <div className="flex items-center justify-between w-full md:w-auto gap-8 bg-gray-50 md:bg-transparent p-4 md:p-0 rounded-xl">
-                                <div className="text-center md:text-right">
-                                    <p className="text-sm text-gray-500 font-semibold">คะแนนสูงสุด</p>
-                                    <p className="text-3xl font-black text-blue-600">{stat.highScore}</p>
-                                </div>
-                                <div className={`text-gray-400 text-2xl transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
-                                    ▼
-                                </div>
+                            <div className="text-right">
+                                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">เล่นไปแล้ว</p>
+                                <p className="text-3xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                                    {stat.gamesPlayed}
+                                </p>
+                                <p className="text-xs font-medium text-slate-400">ครั้ง</p>
                             </div>
                         </div>
-
-                        {/* ส่วนตารางประวัติ (เลื่อนลงมา) */}
-                        <div className={`transition-all duration-300 ease-in-out bg-slate-50 ${isExpanded ? 'max-h-96 opacity-100 overflow-y-auto' : 'max-h-0 opacity-0 overflow-hidden'}`}>
-                            {history.length > 0 ? (
-                                <table className="w-full text-left border-t border-gray-200">
-                                    <thead className="bg-gray-200 text-gray-600 text-lg">
-                                        <tr>
-                                            <th className="px-6 py-3 font-semibold">วันที่และเวลา</th>
-                                            <th className="px-6 py-3 text-right font-semibold">คะแนนที่ได้</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="text-lg">
-                                        {history.map((item, idx) => (
-                                            <tr key={idx} className="border-b border-gray-100 bg-white hover:bg-blue-50">
-                                                <td className="px-6 py-4 text-slate-700">
-                                                    {new Date(item.date).toLocaleDateString('th-TH', {
-                                                        year: '2-digit', month: 'short', day: 'numeric',
-                                                        hour: '2-digit', minute: '2-digit'
-                                                    })} น.
-                                                </td>
-                                                <td className="px-6 py-4 text-right font-bold text-blue-700">
-                                                    {item.score}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            ) : (
-                                <div className="p-8 text-center text-gray-500 text-lg">
-                                    ยังไม่เคยเล่นเกมนี้เลย ลองไปเล่นดูนะครับ!
-                                </div>
-                            )}
+                        
+                        <h3 className="text-xl font-bold text-slate-800 mb-5 group-hover:text-blue-600 transition-colors">{stat.name}</h3>
+                        
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-2xl border border-green-100 shadow-sm group-hover:shadow-md transition-all">
+                                <span className="text-slate-600 font-semibold text-sm flex items-center gap-2">
+                                    <span className="text-xl">🏆</span> คะแนนสูงสุด
+                                </span>
+                                <span className="text-xl font-black text-green-600 bg-white px-3 py-1 rounded-lg">{stat.highScore}</span>
+                            </div>
+                            <div className="flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-2xl border border-blue-100 shadow-sm group-hover:shadow-md transition-all">
+                                <span className="text-slate-600 font-semibold text-sm flex items-center gap-2">
+                                    <span className="text-xl">🕒</span> เล่นล่าสุด
+                                </span>
+                                <span className="text-sm font-bold text-blue-700 bg-white px-3 py-1 rounded-lg">{stat.lastPlayed}</span>
+                            </div>
                         </div>
                     </div>
-                );
-            })}
+                </div>
+            ))}
         </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-row justify-center gap-6 mt-12 w-full">
+          <Link 
+            href="/welcome" 
+            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-extrabold text-xl px-12 py-5 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 border-2 border-white/50 flex items-center gap-4 group hover:scale-105 active:scale-95"
+          >
+            <span className="text-3xl transform group-hover:rotate-12 transition-transform">🏠</span> 
+            <span>กลับหน้าหลัก</span>
+          </Link>
+          <button 
+            onClick={handleLogout}
+            className="bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white font-extrabold text-xl px-10 py-5 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 border-2 border-white/50 flex items-center gap-4 group hover:scale-105 active:scale-95"
+          >
+            <span className="text-3xl">🚪</span>
+            <span>ออกจากระบบ</span>
+          </button>
+        </div>
+
       </div>
     </div>
-  );
+  )
 }
