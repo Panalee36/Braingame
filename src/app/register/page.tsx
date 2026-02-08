@@ -166,18 +166,12 @@ export default function RegisterPage() {
                 type="number"
                 min="40"
                 max="100"
-                list="age-list"
-                className="w-full pl-4 pr-4 py-4 text-xl md:text-2xl rounded-2xl border-2 border-blue-100 bg-blue-50/30 text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none shadow-sm"
+                className="w-full pl-4 pr-4 py-4 text-xl md:text-2xl rounded-2xl border-2 border-blue-100 bg-blue-50/30 text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none shadow-sm appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 placeholder="กรุณาใส่อายุ"
                 value={age}
                 onChange={e => setAge(e.target.value)}
                 required
               />
-              <datalist id="age-list">
-                {Array.from({length: 61}, (_, i) => 40 + i).map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </datalist>
             </div>
             {/* ปุ่มสมัครสมาชิก */}
             <button
