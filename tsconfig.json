@@ -12,7 +12,7 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    // "rootDir": "./src", // Removed to fix build error
     "baseUrl": ".",
     "paths": {
       "@/*": [
