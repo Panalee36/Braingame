@@ -19,6 +19,8 @@ export async function POST(req: Request) {
     }
 
     // 3️⃣ เชื่อมต่อ MongoDB
+    // Wait for the client promise. If MONGODB_URI was missing, this will throw now, 
+    // and be caught by the catch block below.
     const client = await clientPromise;
 
     // ❗ ต้องระบุ database ให้ตรงกับ Compass
@@ -27,10 +29,13 @@ export async function POST(req: Request) {
     // ❗ ต้องใช้ collection ที่ถูกต้อง
     const usersCollection = db.collection("players");
 
+    // Escape regex characters to prevent ReDoS
+    const escapedUsername = normalizedUsername.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
     // 4️⃣ ค้นหาผู้ใช้ (ไม่สนตัวพิมพ์เล็ก/ใหญ่)
     const user = await usersCollection.findOne({
       username: {
-        $regex: new RegExp(`^${normalizedUsername}$`, "i"),
+        $regex: new RegExp(`^${escapedUsername}$`, "i"),
       },
     });
 
