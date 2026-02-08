@@ -2,7 +2,7 @@
 
 
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -152,7 +152,7 @@ const generateDailyGames = (seed: string) => {
 
 
 
-export default function DailyQuizPage() {
+function DailyQuizPageContent() {
 
   const router = useRouter();
 
@@ -1279,4 +1279,12 @@ export default function DailyQuizPage() {
 
   );
 
+}
+
+export default function DailyQuizPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-2xl text-blue-600 font-bold animate-pulse">กำลังโหลด...</div>}>
+      <DailyQuizPageContent />
+    </Suspense>
+  )
 }

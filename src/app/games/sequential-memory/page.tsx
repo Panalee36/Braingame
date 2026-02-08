@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { generateSequentialImages, saveGameHistory } from '@/utils/gameUtils'
@@ -40,7 +40,7 @@ interface SequentialImageItem {
 }
 
 
-export default function SequentialMemoryGame() {
+function SequentialMemoryGameContent() {
     // Card sound effect
     const cardSoundRef = useRef<HTMLAudioElement | null>(null);
     useEffect(() => {
@@ -1035,7 +1035,7 @@ export default function SequentialMemoryGame() {
                           onDragStart={selectedOrder[idx] ? (e) => handleDragStart(e, selectedOrder[idx]!, 'slot') : undefined}
                         >
                           {!selectedOrder[idx] && <span className="text-6xl font-black text-gray-200">{idx + 1}</span>}
-                          {selectedOrder[idx] && <img src={selectedOrder[idx]!.imageUrl} className="w-full h-full object-contain p-4" />}
+                          {selectedOrder[idx] && <img src={selectedOrder[idx]!.imageUrl} alt={selectedOrder[idx]!.label} className="w-full h-full object-contain p-4" />}
                         </div>
                       ))}
                     </div>
@@ -1101,4 +1101,12 @@ export default function SequentialMemoryGame() {
       </div>
     </div>
   );
+}
+
+export default function SequentialMemoryGame() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-2xl text-blue-600 font-bold animate-pulse">กำลังโหลด...</div>}>
+      <SequentialMemoryGameContent />
+    </Suspense>
+  )
 }

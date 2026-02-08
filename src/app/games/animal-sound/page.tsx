@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 // import { generateAnimalSounds } from '@/utils/gameUtils' (ลบออก ใช้ animalUtils แทน)
@@ -59,7 +59,7 @@ interface AnimalSound {
   imageUrl: string;
 }
 
-export default function AnimalSoundGame() {
+function AnimalSoundGameContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isDailyMode = searchParams.get('mode') === 'daily';
@@ -659,4 +659,12 @@ useEffect(() => {
       </div>
     </div>
   );
+}
+
+export default function AnimalSoundGame() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-2xl text-blue-600 font-bold animate-pulse">กำลังโหลด...</div>}>
+      <AnimalSoundGameContent />
+    </Suspense>
+  )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { generateColorCards } from '@/utils/gameUtils'
@@ -47,7 +47,7 @@ interface ColorCard {
   id: string; color: string; colorName?: string; shape?: string; isFlipped: boolean; isMatched: boolean;
 }
 
-export default function ColorMatchingGame() {
+function ColorMatchingGameContent() {
     const wrongSoundRef = useRef<HTMLAudioElement | null>(null)
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -941,5 +941,13 @@ export default function ColorMatchingGame() {
       )}
       </div>
     </div>
+  )
+}
+
+export default function ColorMatchingGame() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-2xl text-blue-600 font-bold animate-pulse">กำลังโหลด...</div>}>
+      <ColorMatchingGameContent />
+    </Suspense>
   )
 }

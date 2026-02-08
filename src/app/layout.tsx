@@ -1,10 +1,17 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  userScalable: true,
+  maximumScale: 5,
+}
 
 export const metadata: Metadata = {
   title: 'เกมฝึกสมอง - ลดความเสี่อมของสมอง',
   description: 'แอปพลิเคชันเกมฝึกสมองสำหรับผู้สูงอายุ เพื่อกระตุ้นสมองและสุขภาพจิต',
-  viewport: 'width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=yes, maximum-scale=5',
   icons: {
     icon: '/favicon.ico',
   },

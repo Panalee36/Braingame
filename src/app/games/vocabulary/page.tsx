@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -42,7 +42,7 @@ interface VocabularyWord {
   imageUrl?: string
 }
 
-export default function VocabularyGame() {
+function VocabularyGameContent() {
     // ...existing code...
     // เพิ่ม state สำหรับควบคุมลำดับเสียงอธิบายกติกา
     const [hasExplainedRules, setHasExplainedRules] = useState(false);
@@ -700,4 +700,12 @@ export default function VocabularyGame() {
       </div>
     </div>
   );
+}
+
+export default function VocabularyGame() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-2xl text-blue-600 font-bold animate-pulse">กำลังโหลด...</div>}>
+      <VocabularyGameContent />
+    </Suspense>
+  )
 }
