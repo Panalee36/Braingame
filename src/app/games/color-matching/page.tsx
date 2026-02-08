@@ -157,10 +157,12 @@ export default function ColorMatchingGame() {
 
   // 3.5 เสียงปรบมือตอนจบเกม
   useEffect(() => {
-    if (gameCompleted && applauseSoundRef.current && !soundDisabled) {
+    if (gameCompleted && !soundDisabled) {
       setTimeout(() => {
-        applauseSoundRef.current.currentTime = 0;
-        applauseSoundRef.current.play().catch(() => {});
+        if (applauseSoundRef.current) {
+          applauseSoundRef.current.currentTime = 0;
+          applauseSoundRef.current.play().catch(() => {});
+        }
       }, 300);
     }
   }, [gameCompleted, soundDisabled]);
