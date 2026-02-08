@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { generateSequentialImages, saveGameHistory } from '@/utils/gameUtils'
@@ -41,6 +41,14 @@ interface SequentialImageItem {
 
 
 export default function SequentialMemoryGame() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-2xl text-blue-600 font-bold animate-pulse">กำลังโหลด...</div>}>
+      <SequentialMemoryGameContent />
+    </Suspense>
+  )
+}
+
+function SequentialMemoryGameContent() {
     // Card sound effect
     const cardSoundRef = useRef<HTMLAudioElement | null>(null);
     useEffect(() => {

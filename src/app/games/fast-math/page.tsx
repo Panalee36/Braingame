@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTTS } from '@/hooks/useTTS'
@@ -49,6 +49,14 @@ interface MathQuestion {
 }
 
 export default function FastMathGame() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-2xl text-blue-600 font-bold animate-pulse">กำลังโหลด...</div>}>
+      <FastMathGameContent />
+    </Suspense>
+  )
+}
+
+function FastMathGameContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isDailyMode = searchParams.get('mode') === 'daily';
