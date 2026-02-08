@@ -54,7 +54,7 @@ export default function WelcomePage() {
     },
     {
       id: 'fast-math',
-      title: 'เกมบวกเลข',
+      title: 'บวกลบเลข',
       description: 'ฝึกการคิดคำนวณไว',
       icon: '🔢',
       bgGradient: 'from-orange-100 to-amber-100',

@@ -55,7 +55,7 @@ export default function ProfilePage() {
   // State สถิติและประวัติ
   const [statistics, setStatistics] = useState<GameStat[]>([
     { id: '1', name: 'เกมจับคู่สี', icon: '🎨', key: 'color-matching', color: 'bg-pink-100 text-pink-600', gamesPlayed: 0, highScore: 0, lastPlayed: '-' },
-    { id: '2', name: 'เกมบวกเลข', icon: '🔢', key: 'fast-math', color: 'bg-blue-100 text-blue-600', gamesPlayed: 0, highScore: 0, lastPlayed: '-' },
+    { id: '2', name: 'บวกลบเลข', icon: '🔢', key: 'fast-math', color: 'bg-blue-100 text-blue-600', gamesPlayed: 0, highScore: 0, lastPlayed: '-' },
     { id: '3', name: 'เกมจำลำดับภาพ', icon: '🖼️', key: 'sequential-memory', color: 'bg-purple-100 text-purple-600', gamesPlayed: 0, highScore: 0, lastPlayed: '-' },
     { id: '4', name: 'เกมฟังเสียงสัตว์', icon: '🐕', key: 'animal-sound', color: 'bg-green-100 text-green-600', gamesPlayed: 0, highScore: 0, lastPlayed: '-' },
     { id: '5', name: 'เกมจำศัพท์', icon: '📚', key: 'vocabulary', color: 'bg-yellow-100 text-yellow-600', gamesPlayed: 0, highScore: 0, lastPlayed: '-' },
@@ -79,20 +79,27 @@ export default function ProfilePage() {
     const storedUsername = localStorage.getItem('profile_username');
     const storedAge = localStorage.getItem('profile_age');
     
-    // ใช้วันที่ปัจจุบันจากเครื่อง
-    const currentDate = new Date();
-    const formattedDate = currentDate.toLocaleDateString('th-TH', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    // ใช้วันที่สมัครจริง (profile_joinedDate) ถ้ามี ถ้าไม่มีก็สร้างใหม่และบันทึก
+    let joinedDate = localStorage.getItem('profile_joinedDate');
+    if (!joinedDate) {
+      // ถ้ายังไม่เคยบันทึก ให้ใช้วันนี้และบันทึกลง localStorage
+      const today = new Date();
+      joinedDate = today.toISOString();
+      localStorage.setItem('profile_joinedDate', joinedDate);
+    }
+    // แปลงเป็นวันที่แบบไทย
+    const joinedDateObj = new Date(joinedDate);
+    const formattedJoinedDate = joinedDateObj.toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
-    
     if (storedUsername) {
       setProfile(prev => ({
         ...prev,
         username: storedUsername,
         age: storedAge || '',
-        joinedDate: formattedDate,
+        joinedDate: formattedJoinedDate,
         fruitEmoji: getFruitEmoji(storedUsername)
       }));
     }
@@ -116,24 +123,25 @@ export default function ProfilePage() {
                 setStatistics(prevStats => prevStats.map(stat => {
                     // กรองเอาเฉพาะเกมนั้นๆ
                     const gameLogs = historyData.filter((h: any) => h.gameType === stat.key);
-                    
                     const gamesPlayed = gameLogs.length;
                     // หาคะแนนสูงสุด (ถ้าไม่มีข้อมูลให้เป็น 0)
-                    const highScore = gameLogs.length > 0 
-                        ? Math.max(...gameLogs.map((h: any) => Number(h.score))) 
-                        : 0;
-                    
+                    let highScore = gameLogs.length > 0 
+                      ? Math.max(...gameLogs.map((h: any) => Number(h.score))) 
+                      : 0;
+                    // จำกัดคะแนนสูงสุดของ animal-sound ไม่เกิน 5
+                    if (stat.key === 'animal-sound') {
+                      highScore = Math.min(highScore, 5);
+                    }
                     // หาวันที่เล่นล่าสุด
                     const lastPlayedDate = gameLogs.length > 0 ? new Date(gameLogs[0].createdAt) : null;
                     const lastPlayedStr = lastPlayedDate 
-                        ? lastPlayedDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) 
-                        : '-';
-
+                      ? lastPlayedDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) 
+                      : '-';
                     return {
-                        ...stat,
-                        gamesPlayed,
-                        highScore,
-                        lastPlayed: lastPlayedStr,
+                      ...stat,
+                      gamesPlayed,
+                      highScore,
+                      lastPlayed: lastPlayedStr,
                     };
                 }));
             }
@@ -201,10 +209,10 @@ export default function ProfilePage() {
           <div className="max-w-4xl mx-auto">
             <button
               onClick={handleBackToOverview}
-              className="bg-white/20 hover:bg-white/35 text-white px-5 py-3 rounded-xl backdrop-blur-lg transition-all duration-300 font-bold flex items-center gap-2 border-2 border-white/40 hover:border-white/60 shadow-lg mb-6"
+              className="bg-gradient-to-r from-green-400 to-emerald-500 text-white px-8 py-4 rounded-2xl border-4 border-green-200 shadow-xl font-extrabold text-xl flex items-center gap-3 mb-8 transition-all duration-200 hover:from-green-500 hover:to-emerald-600 hover:scale-105 hover:shadow-2xl ring-2 ring-green-100/60"
             >
-              <span className="text-xl">←</span>
-              <span>กลับ</span>
+              <span className="text-2xl"></span>
+              <span>กลับหน้าโปรไฟล์</span>
             </button>
             
             <div className="flex items-center gap-6">
@@ -223,23 +231,17 @@ export default function ProfilePage() {
         <div className="max-w-4xl mx-auto px-6 -mt-8">
           {/* สถิติรวม */}
           <div className="bg-white/90 backdrop-blur-lg rounded-3xl p-8 shadow-xl border-2 border-white/50 mb-8">
-            <div className="grid grid-cols-3 gap-6 text-center">
+            <div className="flex justify-center gap-20 text-center">
               <div>
-                <p className="text-sm text-slate-500 font-bold mb-2">จำนวนครั้ง</p>
+                <p className="text-2xl text-black font-bold mb-2">จำนวนครั้ง</p>
                 <p className="text-4xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                   {selectedGame.gamesPlayed}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-slate-500 font-bold mb-2">คะแนนสูงสุด</p>
+                <p className="text-2xl text-black font-bold mb-2">คะแนนสูงสุด</p>
                 <p className="text-4xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                   {selectedGame.highScore}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500 font-bold mb-2">เล่นล่าสุด</p>
-                <p className="text-lg font-bold text-blue-700 mt-3">
-                  {selectedGame.lastPlayed}
                 </p>
               </div>
             </div>
@@ -247,7 +249,7 @@ export default function ProfilePage() {
 
           {/* รายการประวัติการเล่น */}
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-slate-800 mb-4 flex items-center gap-3">
+            <h2 className="text-3xl font-extrabold text-slate-900 mb-6 flex items-center gap-3">
               <span className="text-3xl">📜</span>
               รายการประวัติการเล่น
             </h2>
@@ -278,24 +280,21 @@ export default function ProfilePage() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                          <div className="bg-gradient-to-br from-blue-500 to-purple-600 text-white w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg shadow-lg">
-                            #{gameHistoryDetail.length - index}
-                          </div>
                           <div>
-                            <p className="text-slate-800 font-bold text-lg">คะแนน: {history.score}</p>
-                            <div className="flex items-center gap-3 text-sm text-slate-500 mt-1">
-                              <span className="flex items-center gap-1">
-                                <span>📅</span> {formattedDate}
+                            <p className="text-slate-800 font-extrabold text-3xl">คะแนน: <span className="text-4xl text-purple-700 font-extrabold align-middle">{history.score}</span></p>
+                            <div className="flex items-center gap-4 text-lg text-slate-600 mt-2">
+                              <span className="flex items-center gap-2">
+                                <span className="text-xl">📅</span> <span className="font-bold">{formattedDate}</span>
                               </span>
-                              <span className="flex items-center gap-1">
-                                <span>🕒</span> {formattedTime}
+                              <span className="flex items-center gap-2">
+                                <span className="text-xl">🕒</span> <span className="font-bold">{formattedTime}</span>
                               </span>
                             </div>
                           </div>
                         </div>
                         {history.score === selectedGame.highScore && (
-                          <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white px-4 py-2 rounded-full font-bold text-sm shadow-lg flex items-center gap-2">
-                            <span>🏆</span> สูงสุด
+                          <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white px-7 py-3 rounded-full font-extrabold text-xl shadow-2xl flex items-center gap-3 drop-shadow-lg scale-110">
+                            <span className="text-2xl">🏆</span> สูงสุด
                           </div>
                         )}
                       </div>
@@ -311,16 +310,16 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 font-sans pb-20 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-blue-100 via-blue-50 to-blue-200 font-sans pb-20 relative overflow-hidden">
       
       {/* Decorative Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-200/30 to-purple-200/30 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-pink-200/30 to-yellow-200/30 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-200/40 to-blue-100/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-blue-100/40 to-blue-50/40 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
       </div>
 
       {/* Header Profile Card */}
-      <div className="bg-gradient-to-br from-indigo-600 via-blue-600 to-purple-600 pt-12 pb-28 px-6 rounded-b-[3rem] shadow-2xl relative overflow-hidden">
+      <div className="bg-gradient-to-br from-blue-200 via-blue-300 to-blue-100 pt-12 pb-28 px-6 rounded-b-[3rem] shadow-2xl relative overflow-hidden">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center gap-8 relative z-10">
             
             {/* Avatar */}
@@ -334,26 +333,19 @@ export default function ProfilePage() {
             {/* User Info */}
             <div className="text-center md:text-left text-white flex-1">
                 <h1 className="text-5xl md:text-6xl font-black mb-3 drop-shadow-lg bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">{profile.username || 'ผู้ใช้งาน'}</h1>
-                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-blue-50 font-semibold text-base">
-                    {profile.age && (
-                        <span className="bg-white/25 px-5 py-2 rounded-full backdrop-blur-md border border-white/30 shadow-lg flex items-center gap-2">
-                            <span className="text-xl">🎂</span> อายุ {profile.age} ปี
-                        </span>
-                    )}
-                    <span className="bg-white/25 px-5 py-2 rounded-full backdrop-blur-md border border-white/30 shadow-lg flex items-center gap-2">
-                        <span className="text-xl">📅</span> สมาชิกตั้งแต่ {profile.joinedDate}
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-blue-50 font-semibold text-base">
+                  {profile.age && (
+                    <span className="bg-gradient-to-br from-pink-100 via-peach-100 to-pink-200 px-5 py-2.5 rounded-xl border-2 border-pink-400 shadow-lg flex items-center gap-2 text-blue-900 font-bold text-lg transition-all duration-300 hover:border-pink-500 hover:shadow-xl" style={{ minWidth: '120px' }}>
+                      <span className="text-xl">🎂</span> อายุ {profile.age} ปี
                     </span>
+                  )}
+                  <span className="bg-gradient-to-br from-pink-100 via-peach-100 to-pink-200 px-5 py-2.5 rounded-xl border-2 border-pink-400 shadow-lg flex items-center gap-2 text-blue-900 font-bold text-lg transition-all duration-300 hover:border-pink-500 hover:shadow-xl" style={{ minWidth: '160px' }}>
+                    <span className="text-xl">📅</span> สมาชิกตั้งแต่ {profile.joinedDate}
+                  </span>
                 </div>
             </div>
 
-            {/* Logout Button */}
-            <button 
-                onClick={handleLogout}
-                className="bg-white/20 hover:bg-white/35 text-white px-7 py-3.5 rounded-2xl backdrop-blur-lg transition-all duration-300 font-bold flex items-center gap-3 border-2 border-white/40 hover:border-white/60 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
-            >
-                <span className="text-2xl">🚪</span> 
-                <span className="text-lg">ออกจากระบบ</span>
-            </button>
+            {/* ...ปุ่มออกจากระบบด้านบนถูกลบออก... */}
         </div>
 
         {/* Decorative Elements */}
@@ -417,14 +409,21 @@ export default function ProfilePage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-center mt-12">
-            <Link 
-                href="/welcome" 
-                className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-extrabold text-xl px-12 py-5 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 border-2 border-white/50 flex items-center gap-4 group hover:scale-105 active:scale-95"
-            >
-                <span className="text-3xl transform group-hover:rotate-12 transition-transform">🏠</span> 
-                <span>กลับหน้าหลัก</span>
-            </Link>
+        <div className="flex flex-row justify-center gap-6 mt-12 w-full">
+          <Link 
+            href="/welcome" 
+            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-extrabold text-xl px-12 py-5 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 border-2 border-white/50 flex items-center gap-4 group hover:scale-105 active:scale-95"
+          >
+            <span className="text-3xl transform group-hover:rotate-12 transition-transform">🏠</span> 
+            <span>กลับหน้าหลัก</span>
+          </Link>
+          <button 
+            onClick={handleLogout}
+            className="bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white font-extrabold text-xl px-10 py-5 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 border-2 border-white/50 flex items-center gap-4 group hover:scale-105 active:scale-95"
+          >
+            <span className="text-3xl">🚪</span>
+            <span>ออกจากระบบ</span>
+          </button>
         </div>
 
       </div>

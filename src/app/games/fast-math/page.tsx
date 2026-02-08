@@ -57,14 +57,22 @@ export default function FastMathGame() {
 
   const { speak, cancel } = useTTS();
   const [hasInteracted, setHasInteracted] = useState(false);
-  // ✅ แทรกโค้ดนี้ลงไปบรรทัดถัดมาได้เลยครับ
+  const [soundDisabled, setSoundDisabled] = useState(false);
+  // ✅ อ่านค่า soundDisabled จาก localStorage ถ้าเป็น daily mode
   useEffect(() => {
     if (isDailyMode) {
-        setHasInteracted(true);
+      setHasInteracted(true);
+      // ลำดับความสำคัญ: query string > localStorage > เปิดเสียง
+      const local = localStorage.getItem('daily_quiz_sound_disabled');
+      if (local === 'true') {
+        setSoundDisabled(true);
+        cancel();
+      } else {
+        setSoundDisabled(false);
+      }
     }
-  }, [isDailyMode]);
+  }, [isDailyMode, cancel]);
   const hasSpokenWelcome = useRef(false);
-  const [soundDisabled, setSoundDisabled] = useState(false);
 
   // ไม่ต้องใช้ isSaving ใน State แล้ว เพราะเราจะเช็คตอนจบเกมทีเดียว
   // const [isSaving, setIsSaving] = useState(false); 
@@ -108,7 +116,7 @@ export default function FastMathGame() {
   useEffect(() => {
     if (hasInteracted && !hasSpokenWelcome.current && !gameStarted && !isDailyMode && !showDemo && !soundDisabled) {
        setTimeout(() => {
-         speak("ยินดีต้อนรับสู่เกมบวกเลขครับ... กติกาคือ ให้เลือกคำตอบที่ถูกต้องให้ไวที่สุดครับ... เลือกระดับความยากเพื่อเริ่มเล่นได้เลย");
+         speak("ยินดีต้อนรับสู่เกมบวกลบเลขครับ... กติกาคือ ให้เลือกคำตอบที่ถูกต้องให้ไวที่สุดครับ... เลือกระดับความยากเพื่อเริ่มเล่นได้เลย");
          hasSpokenWelcome.current = true;
        }, 1000);
     }
@@ -145,7 +153,7 @@ export default function FastMathGame() {
   // ... (customGenerateMathQuestion คงเดิม) ...
   const customGenerateMathQuestion = (level: number): MathQuestion => {
     if (level === 1) {
-      const min = 10, max = 99;
+      const min = 0, max = 9;
       let num1 = Math.floor(Math.random() * (max - min + 1)) + min;
       let num2 = Math.floor(Math.random() * (max - min + 1)) + min;
       let operation = Math.random() < 0.5 ? '+' : '-';
@@ -418,14 +426,14 @@ export default function FastMathGame() {
                 }}
                 className="flex items-center gap-2 px-7 py-3 rounded-full bg-[#e9d5ff] text-purple-700 font-bold text-xl shadow hover:bg-[#d8b4fe] transition-all"
               >
-                <span className="text-lg">&#x25C0;</span> กลับ
+                <span className="text-lg">✕</span> เลิกเล่น
               </button>
             ) : (
               <div className="px-6 py-3 bg-yellow-50 text-yellow-800 rounded-2xl font-bold flex items-center gap-2 shadow border border-yellow-100"><span>📅</span> ภารกิจประจำวัน</div>
             )}
             <div className="flex flex-col items-end flex-1 ml-4">
               <span className="text-xs font-bold text-blue-200 uppercase tracking-widest mb-1">LEVEL</span>
-              <span className="text-3xl font-black text-blue-700 drop-shadow-sm">{difficulty === 1 ? 'ระดับธรรมดา' : 'ระดับยาก'}</span>
+              <span className="text-3xl font-black text-blue-700 drop-shadow-sm">{difficulty === 1 ? 'ระดับง่าย' : 'ระดับยาก'}</span>
             </div>
           </div>
         )}
@@ -609,65 +617,65 @@ export default function FastMathGame() {
             </div>
           ) : !gameStarted ? (
             <div className="w-full max-w-5xl flex flex-col items-center animate-fade-in my-auto pb-40">
-              <div className="text-center mb-8">
-                <div className="inline-block p-4 bg-[#FFD180] rounded-[2rem] shadow-sm mb-3 transform -rotate-3 hover:rotate-3 transition-transform">
-                  <span className="text-7xl filter drop-shadow-sm">🔢</span>
+              <div className="text-center mb-6">
+                <div className="inline-block p-6 bg-[#FFD180] rounded-[2.5rem] shadow-lg mb-4">
+                  <span className="text-8xl filter drop-shadow-sm">🔢</span>
                 </div>
-                <h1 className="text-5xl md:text-6xl font-black text-[#1e40af] mb-2 tracking-tight drop-shadow-sm">เกมบวกเลข</h1>
+                <h1 className="text-6xl md:text-7xl font-black text-[#1e40af] mb-3 tracking-tight drop-shadow-sm">บวกลบเลข</h1>
                 <p className="text-xl text-slate-700 font-bold mb-1">ฝึกคิดเลขเร็ว</p>
-                <p className="text-lg text-slate-500 font-medium">เลือกคำตอบที่ถูกต้องให้ไวที่สุด</p>
+                <p className="text-base text-slate-500 font-medium">เลือกคำตอบที่ถูกต้องให้ไวที่สุด</p>
                 <div className="flex flex-row justify-center mt-6 gap-4 items-center w-full">
                     <button
                       onClick={() => speak('เลือกความยาก เพื่อเริ่มเล่นได้เลยครับ')}
-                      className="flex items-center justify-center gap-2 font-bold px-8 h-16 rounded-full min-w-[240px] cursor-pointer hover:scale-105 shadow-lg hover:shadow-xl transition-all text-lg border-b-4 text-indigo-700 bg-white/90 hover:bg-white border-indigo-200"
+                      className="flex items-center justify-center gap-2 font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 shadow-md hover:shadow-lg transition-all text-base border-2 text-indigo-700 bg-white hover:bg-indigo-50 border-indigo-200"
                       type="button"
                     >
-                      <span className="text-2xl">🔊</span>
+                      <span className="text-xl">🔊</span>
                       <span>ฟังคำแนะนำ</span>
                     </button>
                     <button
                       onClick={startDemo}
-                      className="flex items-center justify-center gap-2 font-bold px-8 h-16 rounded-full min-w-[240px] cursor-pointer hover:scale-105 shadow-lg hover:shadow-xl transition-all text-lg border-b-4 text-yellow-900 bg-[#FDE047] hover:bg-yellow-300 border-[#EAB308]"
+                      className="flex items-center justify-center gap-2 font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 shadow-md hover:shadow-lg transition-all text-base border-2 text-yellow-900 bg-[#FDE047] hover:bg-yellow-300 border-yellow-400"
                       type="button"
                     >
-                      <span className="text-2xl">💡</span>
+                      <span className="text-xl">💡</span>
                       <span>ตัวอย่างการเล่น</span>
                     </button>
                 </div>
               </div>
-              <div className="flex flex-col md:flex-row gap-8 w-full max-w-2xl justify-center items-stretch mb-10 px-4">
+              <div className="flex flex-col md:flex-row gap-6 w-full max-w-xl justify-center items-stretch mb-8 px-4">
                 <button 
                   onClick={() => {
                     setSelectedLevel(1);
-                    if (!soundDisabled) speak("ระดับธรรมดาครับ");
+                    if (!soundDisabled) speak("ระดับง่ายครับ");
                   }}
-                  className={`flex-1 group relative bg-white rounded-[2.5rem] p-8 transition-all duration-300 flex flex-col items-center justify-center border-4 ${
+                  className={`flex-1 group relative bg-white rounded-[2rem] p-6 transition-all duration-300 flex flex-col items-center justify-center ${
                     selectedLevel === 1 
-                      ? 'border-[#60A5FA] shadow-[0_0_20px_rgba(96,165,250,0.6)] scale-105 z-20 ring-4 ring-blue-100' 
-                      : 'border-transparent shadow-lg hover:border-blue-200 hover:-translate-y-1 hover:shadow-xl'
+                      ? 'shadow-[0_4px_20px_rgba(59,130,246,0.5)] scale-[1.02] border-4 border-blue-400' 
+                      : 'shadow-lg border-4 border-transparent hover:border-blue-200 hover:shadow-xl'
                   }`}
                 >
-                  <div className="w-24 h-24 bg-orange-100 rounded-full flex items-center justify-center text-6xl mb-4 shadow-inner">😊</div>
-                  <h3 className={`text-3xl font-black mb-2 ${selectedLevel === 1 ? 'text-[#2563EB]' : 'text-[#1e3a8a]'}`}>ระดับธรรมดา</h3>
-                  <p className="text-sm text-slate-500 font-bold">โจทย์เลข 2 ตัว</p>
+                  <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center text-5xl mb-3 shadow-sm">😊</div>
+                  <h3 className={`text-2xl font-black mb-1 ${selectedLevel === 1 ? 'text-[#2563EB]' : 'text-[#1e3a8a]'}`}>ระดับง่าย</h3>
+                  <p className="text-xs text-slate-500 font-semibold">บวกลบเลขหลักหน่วย ตั้งแต่ 0-9</p>
                 </button>
                 <button 
                   onClick={() => {
                     setSelectedLevel(2);
                     if (!soundDisabled) speak("ระดับยากครับ");
                   }}
-                  className={`flex-1 group relative bg-white rounded-[2.5rem] p-8 transition-all duration-300 flex flex-col items-center justify-center border-4 ${
+                  className={`flex-1 group relative bg-white rounded-[2rem] p-6 transition-all duration-300 flex flex-col items-center justify-center ${
                     selectedLevel === 2 
-                      ? 'border-[#A855F7] shadow-[0_0_20px_rgba(168,85,247,0.6)] scale-105 z-20 ring-4 ring-purple-100' 
-                      : 'border-transparent shadow-lg hover:border-purple-200 hover:-translate-y-1 hover:shadow-xl'
+                      ? 'shadow-[0_4px_20px_rgba(168,85,247,0.5)] scale-[1.02] border-4 border-purple-400' 
+                      : 'shadow-lg border-4 border-transparent hover:border-purple-200 hover:shadow-xl'
                   }`}
                 >
-                  <div className="w-24 h-24 bg-pink-100 rounded-full flex items-center justify-center text-6xl mb-4 shadow-inner">🤓</div>
-                  <h3 className={`text-3xl font-black mb-2 ${selectedLevel === 2 ? 'text-[#7C3AED]' : 'text-[#581c87]'}`}>ระดับยาก</h3>
-                  <p className="text-sm text-slate-500 font-bold">โจทย์เลข 3-4 ตัว</p>
+                  <div className="w-20 h-20 bg-pink-100 rounded-full flex items-center justify-center text-5xl mb-3 shadow-sm">🤓</div>
+                  <h3 className={`text-2xl font-black mb-1 ${selectedLevel === 2 ? 'text-[#7C3AED]' : 'text-[#581c87]'}`}>ระดับยาก</h3>
+                  <p className="text-xs text-slate-500 font-semibold">โจทย์เลข 3-4 ตัว</p>
                 </button>
               </div>
-              <div className="flex flex-col items-center w-full">
+              <div className="flex flex-col items-center gap-3 w-full max-w-xs px-4">
                 <button
                   onClick={() => { 
                     if (selectedLevel) {
@@ -676,10 +684,10 @@ export default function FastMathGame() {
                     }
                   }}
                   disabled={!selectedLevel}
-                  className={`w-full max-w-md mx-auto py-4 rounded-2xl text-2xl font-black shadow-lg transition-all duration-200 ${
+                  className={`w-full py-3.5 rounded-[2rem] text-xl font-black shadow-md transition-all duration-200 ${
                     selectedLevel 
-                      ? 'bg-gradient-to-r from-[#A855F7] to-[#8B5CF6] text-white hover:scale-105 hover:shadow-purple-300/50 cursor-pointer border-b-4 border-[#7E22CE]' 
-                      : 'bg-slate-300 text-slate-500 cursor-not-allowed border-b-4 border-slate-400'
+                      ? 'bg-gradient-to-r from-[#A855F7] to-[#8B5CF6] text-white hover:scale-105 hover:shadow-lg cursor-pointer' 
+                      : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                   }`}
                 >
                   เริ่มเล่น
@@ -689,50 +697,82 @@ export default function FastMathGame() {
                     cancel();
                     router.push('/welcome');
                   }}
-                  className="w-full max-w-md mx-auto mt-4 bg-gradient-to-r from-[#38bdf8] to-[#2563eb] hover:from-[#60a5fa] hover:to-[#1d4ed8] active:from-[#2563eb] active:to-[#38bdf8] text-white text-2xl font-bold py-4 px-10 rounded-2xl shadow-lg border-2 border-[#2563eb] transition-all drop-shadow-lg"
-                  style={{
-                    textShadow: '0 2px 8px rgba(37, 99, 235, 0.18)',
-                    boxShadow: '0 8px 24px 0 rgba(37, 99, 235, 0.18), 0 2px 8px 0 rgba(37, 99, 235, 0.10)'
-                  }}
+                  className="w-full py-3.5 rounded-[2rem] bg-[#3B82F6] text-white font-black text-xl hover:bg-[#2563EB] transition-all shadow-md"
                 >
-                  กลับหน้าหลัก
+                  หน้าเลือกเกม
                 </button>
               </div>
             </div>
           ) : gameCompleted ? (
             <div className="w-full max-w-3xl">
-              <div className="card text-center bg-white/95 backdrop-blur-md rounded-[3rem] shadow-2xl p-10 border-[8px] border-white/50 ring-4 ring-blue-200">
-                <div className="text-9xl mb-4 animate-bounce drop-shadow-md">🎉</div>
-                <h2 className="text-6xl font-black text-blue-900 mb-4 tracking-tight">เก่งมาก!</h2>
-                <div className="grid grid-cols-2 gap-6 mb-10">
-                  <div className="bg-yellow-50 p-6 rounded-3xl border-2 border-yellow-100">
-                    <p className="text-yellow-600 font-bold text-lg mb-1 uppercase tracking-wider">ความถูกต้อง</p>
-                    <p className="text-5xl font-black text-yellow-800">{successRate}%</p>
+              <div className="card text-center bg-white/95 backdrop-blur-md rounded-[3rem] shadow-2xl p-16 border-[8px] border-white/50 ring-4 ring-blue-200">
+                <div className="mb-6 drop-shadow-md" style={{fontSize: '8rem'}}>🎉</div>
+                <h2 className="text-8xl font-black text-blue-900 mb-6 tracking-tight">เก่งมาก!</h2>
+                <div className="grid grid-cols-2 gap-8 mb-12">
+                  <div className="bg-blue-50 p-10 rounded-3xl border-2 border-blue-100">
+                    <p className="text-blue-600 font-bold text-2xl mb-2 uppercase tracking-wider">คะแนนรวม</p>
+                    <p className="text-7xl font-black text-blue-800">{score}/10</p>
                   </div>
-                  <div className="bg-blue-50 p-6 rounded-3xl border-2 border-blue-100">
-                    <p className="text-blue-600 font-bold text-lg mb-1 uppercase tracking-wider">คะแนนรวม</p>
-                    <p className="text-5xl font-black text-blue-800">{score}</p>
-                  </div>
-                  <div className="bg-green-50 p-6 rounded-3xl border-2 border-green-100 col-span-2">
-                    <p className="text-green-600 font-bold text-lg mb-1 uppercase tracking-wider">ใช้เวลา</p>
-                    <p className="text-5xl font-black text-green-800">{formatTime(totalTime)}</p>
+                  <div className="bg-green-50 p-10 rounded-3xl border-2 border-green-100">
+                    <p className="text-green-600 font-bold text-2xl mb-2 uppercase tracking-wider">ใช้เวลา</p>
+                    <p className="text-7xl font-black text-green-800">{formatTime(totalTime)}</p>
                   </div>
                 </div>
 
                 {isDailyMode ? (
                   <button 
                     onClick={() => router.push(`/games/daily-quiz?action=next&playedStep=${dailyStep}`)} 
-                    className="w-full py-6 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-2xl font-bold rounded-2xl shadow-xl shadow-green-200 transition-transform hover:scale-[1.02] active:scale-95"
+                    className="w-full py-7 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-2xl font-bold rounded-2xl shadow-xl shadow-green-200 transition-transform hover:scale-[1.02] active:scale-95"
                   >
                     ✅ ผ่านด่าน (ไปต่อ)
                   </button>
                 ) : (
                   <div className="flex flex-col items-center gap-4 w-full">
+                    {difficulty === 1 && (
+                      <button
+                        onClick={() => {
+                          setDifficulty(2);
+                          setGameStarted(true);
+                          setGameCompleted(false);
+                          setSelectedLevel(null);
+                          setScore(0);
+                          setTotalTime(0);
+                          setQuestionsAnswered(0);
+                          setCorrectAnswers(0);
+                          setCurrentQuestion(null);
+                          setAnswered(false);
+                          setSelectedAnswer(null);
+                          // สร้างโจทย์ใหม่ระดับยากทันที
+                          const newQuestion = customGenerateMathQuestion(2);
+                          setCurrentQuestion(newQuestion);
+                        }}
+                        className="w-full max-w-md mx-auto bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 active:from-green-700 active:to-green-500 text-white text-3xl font-bold py-6 px-10 rounded-2xl shadow-lg border-2 border-green-600 transition-all drop-shadow-lg"
+                        style={{
+                          textShadow: '0 2px 8px rgba(22, 163, 74, 0.18)',
+                          boxShadow: '0 8px 24px 0 rgba(22, 163, 74, 0.18), 0 2px 8px 0 rgba(22, 163, 74, 0.10)'
+                        }}
+                      >
+                        ถัดไป (ยาก)
+                      </button>
+                    )}
                     <button
-                      onClick={() => router.push('/welcome')}
-                      className="w-full max-w-md mx-auto py-5 bg-blue-100 hover:bg-blue-200 text-blue-700 text-2xl font-extrabold rounded-2xl shadow transition-all"
+                      onClick={() => {
+                        setGameStarted(false);
+                        setGameCompleted(false);
+                        setSelectedLevel(null);
+                        setScore(0);
+                        setTotalTime(0);
+                        setQuestionsAnswered(0);
+                        setCorrectAnswers(0);
+                        setCurrentQuestion(null);
+                      }}
+                      className="w-full max-w-md mx-auto mt-4 bg-gradient-to-r from-[#38bdf8] to-[#2563eb] hover:from-[#60a5fa] hover:to-[#1d4ed8] active:from-[#2563eb] active:to-[#38bdf8] text-white text-3xl font-bold py-6 px-10 rounded-2xl shadow-lg border-2 border-[#2563eb] transition-all drop-shadow-lg"
+                      style={{
+                        textShadow: '0 2px 8px rgba(37, 99, 235, 0.18)',
+                        boxShadow: '0 8px 24px 0 rgba(37, 99, 235, 0.18), 0 2px 8px 0 rgba(37, 99, 235, 0.10)'
+                      }}
                     >
-                      กลับหน้าเมนู
+                      กลับหน้าแรก
                     </button>
                   </div>
                 )}

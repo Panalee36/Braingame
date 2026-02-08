@@ -18,133 +18,56 @@ export function addMemoryImage(label: string, filename: string) {
 
 // Color Matching Game Utilities
 export const generateColorCards = (difficulty: number) => {
-  // จัดกลุ่มสีตามโทนสี เพื่อไม่ให้สุ่มโทนเดียวกันซ้ำ
-  const COLOR_GROUPS = [
-    // กลุ่มแดง
-    [
-      { color: '#ef4444', name: 'แดง' },
-      { color: '#fb7185', name: 'แดงสด' },
-      { color: '#dc2626', name: 'แดงเข้ม' },
-    ],
-    // กลุ่มส้ม
-    [
-      { color: '#f97316', name: 'ส้ม' },
-      { color: '#fb923c', name: 'ส้มอ่อน' },
-      { color: '#fdba74', name: 'ส้มพีช' },
-    ],
-    // กลุ่มเหลือง
-    [
-      { color: '#eab308', name: 'เหลือง' },
-      { color: '#fbbf24', name: 'เหลืองทอง' },
-      { color: '#fde047', name: 'เหลืองสด' },
-    ],
-    // กลุ่มเขียวมะนาว
-    [
-      { color: '#84cc16', name: 'เขียวมะนาว' },
-      { color: '#a3e635', name: 'เขียวอ่อน' },
-    ],
-    // กลุ่มเขียว
-    [
-      { color: '#22c55e', name: 'เขียว' },
-      { color: '#10b981', name: 'เขียวใบไม้' },
-      { color: '#34d399', name: 'เขียวสด' },
-    ],
-    // กลุ่มเขียวมิ้นท์
-    [
-      { color: '#14b8a6', name: 'เขียวมิ้นท์' },
-      { color: '#2dd4bf', name: 'เขียวทะเล' },
-      { color: '#5eead4', name: 'เขียวพาสเทล' },
-    ],
-    // กลุ่มฟ้า
-    [
-      { color: '#06b6d4', name: 'ฟ้าเข้ม' },
-      { color: '#0ea5e9', name: 'ฟ้า' },
-      { color: '#38bdf8', name: 'ฟ้าสด' },
-    ],
-    // กลุ่มน้ำเงิน
-    [
-      { color: '#3b82f6', name: 'น้ำเงิน' },
-      { color: '#60a5fa', name: 'น้ำเงินอ่อน' },
-      { color: '#93c5fd', name: 'น้ำเงินพาสเทล' },
-    ],
-    // กลุ่มม่วงน้ำเงิน
-    [
-      { color: '#6366f1', name: 'ม่วงน้ำเงิน' },
-      { color: '#818cf8', name: 'ม่วงอ่อน' },
-    ],
-    // กลุ่มม่วง
-    [
-      { color: '#8b5cf6', name: 'ม่วง' },
-      { color: '#a78bfa', name: 'ม่วงสด' },
-      { color: '#c4b5fd', name: 'ม่วงพาสเทล' },
-    ],
-    // กลุ่มม่วงชมพู
-    [
-      { color: '#a855f7', name: 'ม่วงชมพู' },
-      { color: '#c084fc', name: 'ม่วงอมชมพู' },
-      { color: '#e879f9', name: 'ม่วงอ่อน' },
-    ],
-    // กลุ่มชมพูเข้ม
-    [
-      { color: '#ec4899', name: 'ชมพูเข้ม' },
-      { color: '#f472b6', name: 'ชมพู' },
-      { color: '#f9a8d4', name: 'ชมพูสด' },
-    ],
-    // กลุ่มชมพูอ่อน
-    [
-      { color: '#f43f5e', name: 'ชมพูแดง' },
-      { color: '#fb7185', name: 'ชมพูอ่อน' },
-      { color: '#fda4af', name: 'ชมพูพาสเทล' },
-    ],
-  ];
+  // สำหรับระดับง่าย (difficulty 1) - 6 คู่ สี
+  if (difficulty === 1) {
+    const easyColors = [
+      { color: '#ef4444', name: 'แดง' },           // Red
+      { color: '#22c55e', name: 'เขียว' },         // Green
+      { color: '#3b82f6', name: 'น้ำเงิน' },       // Blue
+      { color: '#f97316', name: 'ส้ม' },           // Orange
+      { color: '#FFE135', name: 'เหลือง' },        // Yellow
+      { color: '#8b5cf6', name: 'ม่วง' },          // Violet
+    ];
 
-  // จำนวนคู่ที่ต้องการ
-  const pairs = difficulty === 2 ? 15 : 10;
-  
-  // สุ่มเลือกกลุ่มสีโดยไม่ซ้ำ
-  const shuffledGroups = [...COLOR_GROUPS].sort(() => Math.random() - 0.5);
-  const selectedColors = [];
-  const usedGroupIndices = new Set<number>();
-  
-  // เลือกสีจากแต่ละกลุ่มทีละ 1 สี (เลือกกลุ่มที่ต่างกัน)
-  for (let i = 0; i < pairs && i < shuffledGroups.length; i++) {
-    const group = shuffledGroups[i];
-    // สุ่มเลือก 1 สีจากกลุ่ม
-    const randomColor = group[Math.floor(Math.random() * group.length)];
-    selectedColors.push(randomColor);
-    usedGroupIndices.add(i);
+    // สร้างไพ่ 2 ใบต่อสี
+    const cards = easyColors.flatMap((c, i) => [
+      { id: `c${i}-a`, color: c.color, colorName: c.name },
+      { id: `c${i}-b`, color: c.color, colorName: c.name },
+    ]);
+
+    // สุ่มลำดับการ์ด
+    return cards.sort(() => Math.random() - 0.5);
   }
-  
-  // ถ้ายังไม่ครบจำนวน ให้เลือกจากกลุ่มที่ยังไม่ได้ใช้
-  if (selectedColors.length < pairs) {
-    for (let i = 0; i < shuffledGroups.length && selectedColors.length < pairs; i++) {
-      if (!usedGroupIndices.has(i)) {
-        const group = shuffledGroups[i];
-        // ถ้ากลุ่มมีสีมากกว่า 1 สี ให้เลือกสีอื่นที่ไม่เหมือนที่เลือกไปก่อนหน้า
-        let colorIndex = Math.floor(Math.random() * group.length);
-        const randomColor = group[colorIndex];
-        selectedColors.push(randomColor);
-        usedGroupIndices.add(i);
-      }
-    }
+
+  // สำหรับระดับยาก (difficulty 2) - 12 คู่ สี
+  if (difficulty === 2) {
+    const hardColors = [
+      { color: '#ef4444', name: 'แดง' },              // Red
+      { color: '#003E00', name: 'เขียวเข้ม' },            // Green
+      { color: '#3b82f6', name: 'น้ำเงิน' },          // Blue
+      { color: '#f97316', name: 'ส้ม' },              // Orange
+      { color: '#FFE135', name: 'เหลือง' },           // Yellow
+      { color: '#8b5cf6', name: 'ม่วง' },             // Violet
+      { color: '#7E481C', name: 'น้ำตาล' },        // Yellow-Orange
+      { color: '#FF8FAB', name: 'ชมพู' },      // Blue-Violet
+      { color: '#fff5c3', name: 'ส้มแดง' },           // Red-Orange
+      { color: '#14b8a6', name: 'เขียวน้ำเงิน' },     // Blue-Green
+      { color: '#84cc16', name: 'เขียวเหลือง' },      // Yellow-Green
+      { color: '#A9A9A9', name: 'เทา' },          // Red-Violet
+    ];
+
+    // สร้างไพ่ 2 ใบต่อสี
+    const cards = hardColors.flatMap((c, i) => [
+      { id: `c${i}-a`, color: c.color, colorName: c.name },
+      { id: `c${i}-b`, color: c.color, colorName: c.name },
+    ]);
+
+    // สุ่มลำดับการ์ด
+    return cards.sort(() => Math.random() - 0.5);
   }
-  
-  // ถ้ายังไม่ครบ ให้สุ่มจากทั้งหมด (ควรจะไม่เกิด แต่เพื่อ fallback)
-  while (selectedColors.length < pairs) {
-    const randomGroupIndex = Math.floor(Math.random() * shuffledGroups.length);
-    const group = shuffledGroups[randomGroupIndex];
-    const randomColor = group[Math.floor(Math.random() * group.length)];
-    selectedColors.push(randomColor);
-  }
-  
-  // สร้างไพ่ 2 ใบต่อสี
-  const cards = selectedColors.flatMap((c, i) => [
-    { id: `c${i}-a`, color: c.color, colorName: c.name },
-    { id: `c${i}-b`, color: c.color, colorName: c.name },
-  ]);
-  
-  // สุ่มลำดับการ์ด
-  return cards.sort(() => Math.random() - 0.5);
+
+  // Fallback for any other difficulty (should not reach here)
+  return [];
 };
 
 export const generateMathQuestion = (difficulty: number) => {
@@ -273,52 +196,88 @@ export const generateSequentialImages = (difficulty: number, countOverride?: num
 
 export const ANIMALS = [
   {
-    name: 'หมา',
-    label: 'หมา',
-    image: '/images/animal pictures/dog.jpg',
-    sound: '/sounds/animal-sound/dog.mp3',
+    name: "หมา",
+    label: "หมา",
+    image: "/images/animal pictures/dog.jpg",
+    sound: "/sounds/animal-sound/dog.mp3",
   },
   {
-    name: 'แมว',
-    label: 'แมว',
-    image: '/images/animal pictures/cat.jpg',
-    sound: '/sounds/animal-sound/cat.mp3',
+    name: "แมว",
+    label: "แมว",
+    image: "/images/animal pictures/cat.jpg",
+    sound: "/sounds/animal-sound/cat.mp3",
   },
   {
-    name: 'วัว',
-    label: 'วัว',
-    image: '/images/animal pictures/cow.jpg',
-    sound: '/sounds/animal-sound/cow.mp3',
+    name: "วัว",
+    label: "วัว",
+    image: "/images/animal pictures/cow.jpg",
+    sound: "/sounds/animal-sound/cow.mp3",
   },
   {
-    name: 'ไก่',
-    label: 'ไก่',
-    image: '/images/animal pictures/chicken.jpg',
-    sound: '/sounds/animal-sound/chicken.mp3',
+    name: "ไก่",
+    label: "ไก่",
+    image: "/images/animal pictures/chicken.jpg",
+    sound: "/sounds/animal-sound/chicken.mp3",
   },
   {
-    name: 'เป็ด',
-    label: 'เป็ด',
-    image: '/images/animal pictures/duck.jpg',
-    sound: '/sounds/animal-sound/duck.mp3',
+    name: "เป็ด",
+    label: "เป็ด",
+    image: "/images/animal pictures/duck.jpg",
+    sound: "/sounds/animal-sound/duck.mp3",
   },
   {
-    name: 'หมู',
-    label: 'หมู',
-    image: '/images/animal pictures/pig.jpg',
-    sound: '/sounds/animal-sound/pig.mp3',
+    name: "หมู",
+    label: "หมู",
+    image: "/images/animal pictures/pig.jpg",
+    sound: "/sounds/animal-sound/pig.mp3",
   },
   {
-    name: 'แกะ',
-    label: 'แกะ',
-    image: '/images/animal pictures/sheep.jpg',
-    sound: '/sounds/animal-sound/sheep.mp3',
+    name: "แกะ",
+    label: "แกะ",
+    image: "/images/animal pictures/sheep.jpg",
+    sound: "/sounds/animal-sound/sheep.mp3",
   },
   {
-    name: 'ม้า',
-    label: 'ม้า',
-    image: '/images/animal pictures/horse.jpg',
-    sound: '/sounds/animal-sound/horse.mp3',
+    name: "ม้า",
+    label: "ม้า",
+    image: "/images/animal pictures/horse.jpg",
+    sound: "/sounds/animal-sound/horse.mp3",
+  },
+  {
+    name: "เสือ",
+    label: "เสือ",
+    image: "/images/animal pictures/tiger.jpg",
+    sound: "/sounds/animal-sound/tiger.mp3",
+  },
+  {
+    name: "ช้าง",
+    label: "ช้าง",
+    image: "/images/animal pictures/elephant.jpg",
+    sound: "/sounds/animal-sound/elephant.mp3",
+  },
+  {
+    name: "นก",
+    label: "นก",
+    image: "/images/animal pictures/bird.jpg",
+    sound: "/sounds/animal-sound/bird.mp3",
+  },
+  {
+    name: "ลิง",
+    label: "ลิง",
+    image: "/images/animal pictures/monkey.jpg",
+    sound: "/sounds/animal-sound/monkey.mp3",
+  },
+  {
+    name: "ผึ้ง",
+    label: "ผึ้ง",
+    image: "/images/animal pictures/bee.jpg",
+    sound: "/sounds/animal-sound/bee.mp3",
+  },
+  {
+    name: "จิ้งหรีด",
+    label: "จิ้งหรีด",
+    image: "/images/animal pictures/cricket.jpg",
+    sound: "/sounds/animal-sound/cricket.mp3",
   },
 ];
 
@@ -367,6 +326,12 @@ const VOCABULARY_WORDS = [
   'นก',
   'ปลา',
   'ต้นสน',
+  'ขนมปัง',
+  'แว่นตา',
+  'โทรทัศน์',
+  'จักรวาล',
+  'สนามเด็กเล่น',
+  'ต้นกล้า',
   'ดวงอาทิตย์',
   'ดวงจันทร์',
   'ดาว',
@@ -379,6 +344,24 @@ const VOCABULARY_WORDS = [
   'ฟ้าผ่า',
   'สวน',
   'สนามหญ้า',
+  'แก้ว',
+  'นาฬิกา',
+  'โทรศัพท์',
+  'ดอกไม้',
+  'โต๊ะ',
+  'เก้าอี้',
+  'กระเป๋า',
+  'รองเท้า',
+  'หมวก',
+  'เสื้อผ้า',
+  'อาหาร',
+  'ผลไม้',
+  'สนามหญ้า',
+  'ฟ้าผ่า',
+  'รถยนต์',
+  'สนามฟุตบอล',
+  'จักรยาน',
+  'ต้นสน',
 ]
 
 export const generateVocabularyWords = (difficulty: number, customCount?: number) => {
@@ -393,14 +376,14 @@ export const generateVocabularyWords = (difficulty: number, customCount?: number
   return selected
 }
 
-export const generateVocabularyOptions = (words: any[], difficulty: number) => {
+export const generateVocabularyOptions = (words: any[], difficulty: number, totalOptions: number = 30) => {
   const options = [...words]
   // Prevent infinite loop: we can only have as many unique options
   // as the vocabulary pool provides. If the requested total exceeds
   // the pool size, cap to the pool size.
-  const totalOptions = Math.min(24, VOCABULARY_WORDS.length)
+  const maxOptions = Math.min(totalOptions, VOCABULARY_WORDS.length)
 
-  while (options.length < totalOptions) {
+  while (options.length < maxOptions) {
     const candidate = VOCABULARY_WORDS[Math.floor(Math.random() * VOCABULARY_WORDS.length)]
     // Keep options unique until we reach the capped total
     if (!options.find((w) => w.word === candidate)) {

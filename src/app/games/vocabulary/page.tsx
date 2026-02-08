@@ -63,17 +63,23 @@ export default function VocabularyGame() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isDailyMode = searchParams.get('mode') === 'daily';
-  const levelFromQuery = parseInt(searchParams.get('level') || '1', 10);
+  // const levelFromQuery = parseInt(searchParams.get('level') || '1', 10); // ไม่ใช้ระดับอีกต่อไป
   const dailyStep = searchParams.get('dailyStep');
 
   // ✅ 2. เปิดใช้งานระบบเสียง
   const { speak } = useTTS();
   const hasSpokenWelcome = useRef(false);
   const [hasInteracted, setHasInteracted] = useState(false); // เช็คว่ากดปุ่มเริ่มเสียงยัง
-  // ✅ แทรกโค้ดนี้ลงไปบรรทัดถัดมาได้เลยครับ
+  // ✅ อ่านค่า soundDisabled จาก localStorage ถ้าเป็น daily mode
   useEffect(() => {
     if (isDailyMode) {
-        setHasInteracted(true);
+      setHasInteracted(true);
+      const local = localStorage.getItem('daily_quiz_sound_disabled');
+      if (local === 'true') {
+        setSoundDisabled(true);
+      } else {
+        setSoundDisabled(false);
+      }
     }
   }, [isDailyMode]);
   const [soundDisabled, setSoundDisabled] = useState(false); // เพิ่ม state สำหรับปิดเสียงบรรยาย (TTS)
@@ -82,8 +88,7 @@ export default function VocabularyGame() {
   const [selectionOptions, setSelectionOptions] = useState<VocabularyWord[]>([])
   const [selectedWords, setSelectedWords] = useState<VocabularyWord[]>([])
   const [showWords, setShowWords] = useState(true)
-  const [difficulty, setDifficulty] = useState(1)
-  const [difficultyChoice, setDifficultyChoice] = useState<number | null>(null)
+  // ไม่มีระดับอีกต่อไป
   const [gameStarted, setGameStarted] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
   const [totalTime, setTotalTime] = useState(0)
@@ -117,14 +122,11 @@ export default function VocabularyGame() {
   // 2.1 อธิบายกติกาก่อนอ่านคำศัพท์
   useEffect(() => {
     if (gameStarted && showDisplayTimer && showWords && !soundDisabled && !hasExplainedRules && displayedWords.length > 0) {
-      // อธิบายกติกา แล้วค่อยอ่านคำศัพท์
-      const utter = new window.SpeechSynthesisUtterance("จดจำคำศัพท์ที่เห็นให้ดี ");
-      utter.lang = 'th-TH';
-      utter.rate = 0.9;
-      utter.onend = () => setHasExplainedRules(true);
-      window.speechSynthesis.speak(utter);
+      // อธิบายกติกา แล้วค่อยอ่านคำศัพท์ (ใช้ speak() เพื่อป้องกันซ้ำ)
+      speak("จดจำคำศัพท์ที่เห็นให้ดี");
+      setTimeout(() => setHasExplainedRules(true), 1200);
     }
-  }, [gameStarted, showDisplayTimer, showWords, soundDisabled, hasExplainedRules, displayedWords]);
+  }, [gameStarted, showDisplayTimer, showWords, soundDisabled, hasExplainedRules, displayedWords, speak]);
 
   // 2.2 อ่านคำศัพท์ทีละคำหลังอธิบายกติกา
   useEffect(() => {
@@ -195,10 +197,10 @@ export default function VocabularyGame() {
 
   // ------------------------------
 
-  const initializeGame = (level: number = difficulty) => {
-    const wordCount = level === 2 ? 15 : 10;
-    const words = generateVocabularyWords(level, wordCount)
-    const options = generateVocabularyOptions(words, level)
+  const initializeGame = () => {
+    const wordCount = 20; // กำหนดจำนวนคำตายตัว (20 คำ)
+    const words = generateVocabularyWords(1, wordCount)
+    const options = generateVocabularyOptions(words, 1, 30)
     setDisplayedWords(words)
     setSelectionOptions(options)
     setSelectedWords([])
@@ -206,31 +208,28 @@ export default function VocabularyGame() {
     setGameStarted(true)
     setGameCompleted(false)
     setTotalTime(0)
-    setDifficulty(level)
     setIsSaving(false)
-    const previewSeconds = level === 1 ? 75 : 90
-    const playLimit = level === 1 ? 90 : 105
-    setTimeLimit(Math.min(playLimit, getTimeLimit('vocabulary', level)))
+    setTimeLimit(120) // กำหนดเวลาตายตัว 2 นาที (120 วินาที)
     setCorrectCount(null)
-    setDisplayTimer(previewSeconds)
+    setDisplayTimer(120) // เวลาดูคำ 2 นาที (120 วินาที)
     setShowDisplayTimer(true)
   }
 
   // Auto Start Daily Mode
   useEffect(() => {
     if (isDailyMode && !gameStarted && !gameCompleted && hasInteracted) {
-        initializeGame(levelFromQuery);
+        initializeGame();
     }
-  }, [isDailyMode, levelFromQuery, hasInteracted, gameStarted, gameCompleted, initializeGame]);
+  }, [isDailyMode, hasInteracted, gameStarted, gameCompleted]);
 
-  const startDemo = (level: number = 1) => {
+  const startDemo = () => {
     demoTimeoutsRef.current.forEach(clearTimeout);
     demoTimeoutsRef.current = [];
     setShowDemo(true)
     setDemoStep(0)
     speak("นี่คือตัวอย่างการเล่นครับ... ช่วงแรกให้จำคำศัพท์... พอหมดเวลา ให้เลือกคำศัพท์ที่จำได้ครับ");
-    const demoWords = generateVocabularyWords(level, 6)
-    const demoOptions = generateVocabularyOptions(demoWords, level)
+    const demoWords = generateVocabularyWords(1, 6)
+    const demoOptions = generateVocabularyOptions(demoWords, 1)
     setDisplayedWords(demoWords)
     setSelectionOptions(demoOptions)
     setSelectedWords([])
@@ -239,7 +238,6 @@ export default function VocabularyGame() {
     setGameCompleted(false)
     setTotalTime(0)
     setCorrectCount(null)
-    setDifficulty(level)
 
     const schedule = (fn: () => void, delay: number) => {
       const id = setTimeout(fn, delay);
@@ -326,14 +324,14 @@ export default function VocabularyGame() {
       if (exists) {
         next = prev.filter((w) => w.id !== word.id)
       } else {
-        if (prev.length >= maxSelections) return prev
-        next = [...prev, word]
+        if (prev.length >= maxSelections) {
+          // ถ้าเลือกครบ 20 แล้ว ให้แทนที่ตัวแรกที่เลือก (วน)
+          next = [...prev.slice(1), word]
+        } else {
+          next = [...prev, word]
+        }
       }
-      if (next.length >= maxSelections) {
-        const correct = next.filter((w) => displayedWords.some((dw) => dw.word === w.word)).length
-        setCorrectCount(correct)
-        setGameCompleted(true)
-      }
+      // ไม่ต้อง setGameCompleted ที่นี่ ให้หมดเวลาค่อยจบเกม
       return next
     })
   }
@@ -350,27 +348,15 @@ export default function VocabularyGame() {
           </div>
           <p className="text-slate-600 mb-8 text-lg leading-relaxed">
             เพื่อประสบการณ์ที่ดีที่สุด<br />
-            กรุณากด <span className="font-bold text-blue-500">&quot;เริ่มใช้งานเสียง&quot;</span> ด้านล่าง<br />
-            <span className="text-sm text-slate-500">(ถ้าไม่ได้ยินเสียง ให้ลองกด <span className="font-bold text-blue-400">&quot;ทดสอบเสียง&quot;</span> ก่อน)</span>
+            กรุณากด <span className="font-bold text-blue-500">&quot;เริ่มใช้งานเสียง&quot;</span> ด้านล่าง
           </p>
           <div className="flex flex-col gap-4">
             <button
               onClick={() => {
-                window.speechSynthesis.cancel();
-                speak("นี่คือเสียงทดสอบภาษาไทย ถ้าคุณได้ยินเสียงนี้ แสดงว่าเบราว์เซอร์ของคุณรองรับ speech synthesis");
-              }}
-              className="w-full py-3 bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white font-bold rounded-xl text-lg shadow-lg transition-transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group"
-              type="button"
-            >
-              <span className="text-2xl group-hover:animate-pulse">🔈</span>
-              <span>ทดสอบเสียง</span>
-            </button>
-            <button
-              onClick={() => {
                 setHasInteracted(true);
-                speak("พร้อมแล้วครับ");
+                setSoundDisabled(false);
               }}
-              className="w-full py-4 bg-gradient-to-r from-green-400 to-green-500 hover:from-green-500 hover:to-green-600 text-white font-black rounded-2xl text-xl shadow-xl transition-transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group border-b-4 border-green-700"
+              className="w-full py-4 bg-gradient-to-r from-green-400 to-green-500 hover:from-green-500 hover:to-green-600 text-white font-bold rounded-2xl text-xl shadow-xl transition-transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group"
               type="button"
             >
               <span className="text-2xl group-hover:animate-pulse">✅</span>
@@ -488,7 +474,7 @@ export default function VocabularyGame() {
                 </button>
                 {demoStep >= 5 && (
                   <button
-                    onClick={() => { closeDemo(); setTimeout(() => difficultyChoice ? initializeGame(difficultyChoice) : initializeGame(1), 300); }}
+                    onClick={() => { closeDemo(); setTimeout(() => initializeGame(), 300); }}
                     className="flex-1 py-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold text-xl rounded-2xl shadow-lg transition-all hover:scale-105 border-b-4 border-indigo-800 animate-pulse"
                   >
                     🚀 เริ่มเล่นเลย!
@@ -501,97 +487,56 @@ export default function VocabularyGame() {
           <div className="w-full max-w-5xl flex flex-col items-center animate-fade-in my-auto pb-40">
 
             {/* Main Welcome Card */}
-            <div className="text-center mb-8">
-              <div className="inline-block p-4 bg-[#FFD180] rounded-[2rem] shadow-sm mb-3">
-                <span className="text-7xl filter drop-shadow-sm">📚</span>
+            <div className="text-center mb-6">
+              <div className="inline-block p-6 bg-[#FFD180] rounded-[2.5rem] shadow-lg mb-4">
+                <span className="text-8xl filter drop-shadow-sm">📘</span>
               </div>
-              <h1 className="text-5xl md:text-6xl font-black text-[#1e3a8a] mb-2 tracking-tight drop-shadow-sm">
+              <h1 className="text-6xl md:text-7xl font-black text-[#1e3a8a] mb-3 tracking-tight drop-shadow-sm">
                 เกมจำศัพท์
               </h1>
               <p className="text-xl text-slate-700 font-bold mb-1">ฝึกความจำและคำศัพท์</p>
-              <p className="text-lg text-slate-500 font-medium">จำคำศัพท์และเลือกให้ถูกต้อง</p>
+              <p className="text-base text-slate-500 font-medium">จำคำศัพท์และเลือกให้ถูกต้อง</p>
             </div>
             {/* ฟังคำแนะนำ + ตัวอย่างการเล่น */}
             <div className="flex justify-center gap-4 mb-8 items-center w-full">
               <button
-                onClick={() => speak('เลือกความยาก แล้วกดปุ่มเริ่มเล่น เพื่อเริ่มจำคำศัพท์ครับ')}
-                className="flex items-center justify-center gap-2 font-bold px-8 h-16 rounded-full min-w-[240px] cursor-pointer hover:scale-105 shadow-lg hover:shadow-xl transition-all text-lg border-b-4 text-indigo-700 bg-white/90 hover:bg-white border-indigo-200"
+                onClick={() => speak('กดปุ่มเริ่มเล่น เพื่อเริ่มจำคำศัพท์ครับ')}
+                className="flex items-center justify-center gap-2 font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 shadow-md hover:shadow-lg transition-all text-base border-2 text-indigo-700 bg-white hover:bg-indigo-50 border-indigo-200"
                 type="button"
                 aria-label="ฟังคำแนะนำ"
               >
-                <span className="text-2xl">🔊</span>
+                <span className="text-xl">🔊</span>
                 <span>ฟังคำแนะนำ</span>
               </button>
               <button
-                onClick={() => startDemo(difficultyChoice || 1)}
-                className="flex items-center justify-center gap-2 font-bold px-8 h-16 rounded-full min-w-[240px] cursor-pointer hover:scale-105 shadow-lg hover:shadow-xl transition-all text-lg border-b-4 text-yellow-900 bg-[#FDE047] hover:bg-yellow-300 border-[#EAB308]"
+                onClick={startDemo}
+                className="flex items-center justify-center gap-2 font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 shadow-md hover:shadow-lg transition-all text-base border-2 text-yellow-900 bg-[#FDE047] hover:bg-yellow-300 border-yellow-400"
                 type="button"
                 title="ดูตัวอย่างการเล่น"
               >
-                <span className="text-2xl">💡</span>
+                <span className="text-xl">💡</span>
                 <span>ตัวอย่างการเล่น</span>
               </button>
             </div>
-            {/* Level Buttons */}
-            <div className="flex flex-col md:flex-row gap-8 w-full max-w-2xl justify-center items-stretch mb-10 px-4">
-              {/* ระดับธรรมดา */}
-              <button
-                onClick={() => {
-                  setDifficultyChoice(1);
-                  if (!soundDisabled) speak('ระดับธรรมดา');
-                }}
-                className={`flex-1 group relative bg-white rounded-[2.5rem] p-8 transition-all duration-300 flex flex-col items-center justify-center border-4
-                  ${difficultyChoice === 1
-                    ? 'border-[#60A5FA] shadow-[0_0_20px_rgba(96,165,250,0.6)] scale-105 z-20 ring-4 ring-blue-100'
-                    : 'border-transparent shadow-lg hover:border-blue-200 hover:-translate-y-1 hover:shadow-xl'
-                  }`}
-              >
-                <div className="w-24 h-24 bg-orange-100 rounded-full flex items-center justify-center text-6xl mb-4 shadow-inner">😊</div>
-                <h3 className={`text-3xl font-black mb-2 ${difficultyChoice === 1 ? 'text-[#2563EB]' : 'text-[#1e3a8a]'}`}>ระดับธรรมดา</h3>
-                <p className="text-sm text-slate-500 font-bold">จำนวนคำศัพท์น้อย เหมาะเริ่มฝึกฝน</p>
-              </button>
-              {/* ระดับยาก */}
-              <button
-                onClick={() => {
-                  setDifficultyChoice(2);
-                  if (!soundDisabled) speak('ระดับยาก');
-                }}
-                className={`flex-1 group relative bg-white rounded-[2.5rem] p-8 transition-all duration-300 flex flex-col items-center justify-center border-4
-                  ${difficultyChoice === 2
-                    ? 'border-[#A855F7] shadow-[0_0_20px_rgba(168,85,247,0.6)] scale-105 z-20 ring-4 ring-purple-100'
-                    : 'border-transparent shadow-lg hover:border-purple-200 hover:-translate-y-1 hover:shadow-xl'
-                  }`}
-              >
-                <div className="w-24 h-24 bg-pink-100 rounded-full flex items-center justify-center text-6xl mb-4 shadow-inner">🤓</div>
-                <h3 className={`text-3xl font-black mb-2 ${difficultyChoice === 2 ? 'text-[#7C3AED]' : 'text-[#581c87]'}`}>ระดับยาก</h3>
-                <p className="text-sm text-slate-500 font-bold">ท้าทายความจำ จำนวนคำศัพท์เยอะขึ้น</p>
-              </button>
-            </div>
+            {/* ไม่มีปุ่มเลือกระดับ */}
             {/* Action Buttons */}
-            <div className="flex flex-col items-center gap-4 w-full max-w-xs px-4 relative z-20">
+            <div className="flex flex-col items-center gap-3 w-full max-w-xs px-4 relative z-20">
               {/* Start Button */}
               <button
-                onClick={() => difficultyChoice && initializeGame(difficultyChoice)}
-                disabled={difficultyChoice === null}
-                className={`w-full py-4 rounded-2xl text-2xl font-black shadow-lg transition-all duration-200
-                  ${difficultyChoice
-                    ? 'bg-gradient-to-r from-green-400 to-green-600 text-white hover:scale-105 hover:shadow-green-300/50 cursor-pointer border-b-4 border-green-700'
-                    : 'bg-slate-300 text-slate-500 cursor-not-allowed border-b-4 border-slate-400'
-                  }`}
+                onClick={initializeGame}
+                className="w-full py-3.5 rounded-[2rem] text-xl font-black shadow-md transition-all duration-200 bg-gradient-to-r from-green-400 to-green-600 text-white hover:scale-105 hover:shadow-lg cursor-pointer"
               >
                 เริ่มเล่น
               </button>
-              
-
               {/* Back Button */}
               <button
                 onClick={() => {
                   window.speechSynthesis.cancel();
                   router.push('/welcome');
                 }}
-                className="px-8 py-3 rounded-2xl bg-gradient-to-r from-blue-400 to-blue-600 text-white font-bold text-lg hover:from-blue-500 hover:to-blue-700 transition-all shadow-md flex items-center gap-2 border-b-4 border-blue-700"
+                className="w-full py-3.5 rounded-[2rem] bg-[#3B82F6] text-white font-black text-xl hover:bg-[#2563EB] transition-all shadow-md"
               >
-                <span>⬅</span> กลับหน้าหลัก
+                หน้าเลือกเกม
               </button>
             </div>
           </div>
@@ -600,22 +545,29 @@ export default function VocabularyGame() {
             
             {/* Custom Header Bar */}
             <div className="flex items-center justify-between mb-8 bg-white/90 rounded-3xl px-10 md:px-16 py-6 shadow-md border border-blue-100 max-w-7xl w-full mx-auto">
-              {/* Back button */}
-              <button
-                onClick={() => setGameStarted(false)}
-                className="flex items-center gap-3 px-8 py-4 rounded-full bg-purple-200 text-purple-800 font-extrabold text-2xl shadow-lg border-4 border-purple-300 hover:bg-purple-300 transition-all focus:outline-none focus:ring-4 focus:ring-purple-200/60 drop-shadow-xl animate-pop-in"
-                style={{ minWidth: 0 }}
-                type="button"
-              >
-                <span className="text-2xl">&lt;</span> กลับ
-              </button>
-              {/* Centered level info */}
-              <div className="flex-1 flex flex-col items-center">
-                <span className="uppercase text-lg font-extrabold text-blue-300 tracking-widest mb-2" style={{letterSpacing:'0.12em'}}>LEVEL</span>
-                <span className="text-4xl md:text-5xl font-extrabold text-blue-600 drop-shadow-sm">
-                  {difficulty === 2 ? 'ระดับยาก' : 'ระดับธรรมดา'}
-                </span>
-              </div>
+              {/* Back button หรือ ปุ่มภารกิจประจำวัน */}
+              {isDailyMode ? (
+                <div className="px-6 py-3 bg-yellow-50 text-yellow-800 rounded-2xl font-bold flex items-center gap-2 shadow border border-yellow-100">
+                  <span>📅</span> ภารกิจประจำวัน
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    window.speechSynthesis.cancel();
+                    setGameStarted(false);
+                  }}
+                  className="px-6 py-3 rounded-full bg-purple-200 text-purple-800 font-extrabold text-xl shadow-lg border-2 border-purple-300 hover:bg-purple-300 transition-all focus:outline-none hover:scale-105 active:scale-95 flex items-center gap-3"
+                  style={{ minWidth: 0 }}
+                  type="button"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span>เลิกเล่น</span>
+                </button>
+              )}
+              {/* ไม่มีแถบแสดงระดับ */}
+              <div className="flex-1 flex flex-col items-center" />
               {/* Speaker icon for reading all words */}
               {showWords && (
                 <button
@@ -657,7 +609,7 @@ export default function VocabularyGame() {
             {showWords ? (
               <div className="card text-center mb-8 bg-blue-50 border-4 border-primary-500 p-10 w-full max-w-6xl mx-auto rounded-2xl shadow-lg">
                 <div
-                  className="grid justify-center gap-x-12 gap-y-10"
+                  className="grid justify-center gap-x-12 gap-y-11"
                   style={{
                     gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                     gridAutoFlow: 'row',
@@ -667,17 +619,17 @@ export default function VocabularyGame() {
                   {displayedWords.map((word) => (
                     <div
                       key={word.id}
-                      className="bg-white py-4 px-10 rounded-2xl border-2 border-primary-200 shadow flex items-center justify-center mx-auto mb-2"
-                      style={{ minWidth: 160, maxWidth: 360, width: 'auto' }}
+                      className="bg-white py-4 px-8 rounded-2xl border-2 border-primary-200 shadow flex items-center justify-center mx-auto mb-2"
+                      style={{ minWidth: 160, maxWidth: 360, width: 'auto', minHeight: 56, wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
-                      <p className="text-2xl font-extrabold text-primary-700 tracking-wide drop-shadow-sm text-center w-full whitespace-nowrap">{word.word}</p>
+                      <p className="text-2xl font-extrabold text-primary-700 tracking-wide drop-shadow-sm text-center w-full" style={{wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal'}}>{word.word}</p>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="card text-center mb-8 bg-green-50 border-4 border-primary-200 p-10 w-full max-w-screen-xl mx-auto rounded-2xl">
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-6">
+              <div className="card text-center mb-2 bg-green-50 border-6 border-primary-200 p-10 w-full max-w-screen-xl mx-auto rounded-2xl">
+                <div className="grid grid-cols-4 md:grid-cols-6 gap-10">
                   {selectionOptions.map((word) => {
                     const isSelected = selectedWords.some((w) => w.id === word.id)
                     return (
@@ -712,14 +664,7 @@ export default function VocabularyGame() {
                     <span className="text-2xl font-bold text-blue-500 mt-1">คะแนน</span>
                   </div>
                 </div>
-                <div className="mt-10">
-                  {/* ใช้เวลา */}
-                  <div className="bg-gradient-to-br from-yellow-100 via-yellow-50 to-white rounded-[2.5rem] p-10 flex flex-col items-center shadow-2xl border-2 border-yellow-200 min-w-[230px] min-h-[190px] transition-all duration-200 hover:scale-105">
-                    <span className="text-4xl mb-2">⏰</span>
-                    <p className="text-2xl font-extrabold text-yellow-700 mb-2 tracking-wide drop-shadow">ใช้เวลา</p>
-                    <p className="text-7xl font-extrabold text-yellow-700 drop-shadow-lg mb-1">{formatTime(totalTime)}</p>
-                  </div>
-                </div>
+
               </div>
               {isDailyMode ? (
                 <button 
@@ -739,7 +684,11 @@ export default function VocabularyGame() {
                       setTotalTime(0);
                       setShowWords(true);
                     }}
-                    className="w-full py-5 bg-blue-100 hover:bg-blue-200 text-blue-700 text-3xl font-extrabold rounded-2xl shadow transition-all"
+                    className="w-full py-5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 active:from-blue-700 active:to-blue-800 text-white text-3xl font-extrabold rounded-2xl shadow-xl hover:shadow-2xl transition-all transform hover:scale-105 active:scale-95 border-2 border-blue-400"
+                    style={{
+                      textShadow: '0 2px 8px rgba(37, 99, 235, 0.3)',
+                      boxShadow: '0 8px 24px 0 rgba(59, 130, 246, 0.3), 0 2px 8px 0 rgba(59, 130, 246, 0.2)'
+                    }}
                   >
                     กลับหน้าเมนู
                   </button>

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { generateSequentialImages, saveGameHistory } from '@/utils/gameUtils'
-import { useTTS } from '@/hooks/useTTS' // ✅ 1. เพิ่มบรรทัดนี้
+import { useTTS } from '@/hooks/useTTS' 
 
 // Hook สำหรับ fallback รูปภาพ (คงเดิม)
 function useImageFallback(count: number) {
@@ -41,26 +41,43 @@ interface SequentialImageItem {
 
 
 export default function SequentialMemoryGame() {
+    // Card sound effect
+    const cardSoundRef = useRef<HTMLAudioElement | null>(null);
+    useEffect(() => {
+      const audio = new Audio('/sounds/Soundeffect/card.pm3');
+      audio.preload = 'auto';
+      cardSoundRef.current = audio;
+      return () => {
+        audio.pause();
+        cardSoundRef.current = null;
+      };
+    }, []);
   const router = useRouter();
   const searchParams = useSearchParams();
   const isDailyMode = searchParams.get('mode') === 'daily';
   const levelFromQuery = parseInt(searchParams.get('level') || '1', 10);
   const dailyStep = searchParams.get('dailyStep');
+  // ✅ 1. เพิ่มรับค่า sound
+  const soundParam = searchParams.get('sound');
 
-  // ✅ 2. แทรก Hook เสียงตรงนี้ (ไม่กระทบ Logic เกม)
   const { speak, cancel } = useTTS();
-  const [hasInteracted, setHasInteracted] = useState(false); // ปุ่มปลดล็อกเสียง
-  // ✅ แทรกโค้ดนี้ลงไปบรรทัดถัดมาได้เลยครับ
+  const [hasInteracted, setHasInteracted] = useState(false); 
+  const [soundDisabled, setSoundDisabled] = useState(false);
+
+  // ✅ 2. แก้ไข useEffect นี้ให้รับค่า sound
   useEffect(() => {
     if (isDailyMode) {
         setHasInteracted(true);
+        if (soundParam === 'off') {
+            setSoundDisabled(true);
+            cancel();
+        } else {
+            setSoundDisabled(false);
+        }
     }
-  }, [isDailyMode]);
-  const hasSpokenWelcome = useRef(false);
-  // เพิ่ม state สำหรับปิดเสียงบรรยาย (TTS)
-  const [soundDisabled, setSoundDisabled] = useState(false);
+  }, [isDailyMode, soundParam, cancel]);
 
-  // ✅ เพิ่ม State สำหรับกันการบันทึกซ้ำ
+  const hasSpokenWelcome = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // State เดิมของคุณ (คงเดิม 100%)
@@ -131,7 +148,7 @@ export default function SequentialMemoryGame() {
   function handleRemoveFromSlot(idx: number) {
     setSelectedOrder(prev => {
       const copy = [...prev];
-      copy[idx] = null;
+      copy[idx] = null; // ลบเฉพาะช่องนี้ ไม่ขยับรูปอื่น
       return copy;
     });
   }
@@ -145,10 +162,76 @@ export default function SequentialMemoryGame() {
       setSelectedOrder(prev => {
         const copy = [...prev];
         copy[emptyIdx] = image;
+        // Play card sound
+        if (cardSoundRef.current) {
+          cardSoundRef.current.currentTime = 0;
+          cardSoundRef.current.play().catch(() => {});
+        }
         return copy;
       });
     }
   }
+
+  // Drag and Drop handlers
+  const [draggedImage, setDraggedImage] = useState<SequentialImageItem | null>(null);
+  const [dragSource, setDragSource] = useState<'pool' | 'slot' | null>(null);
+
+  // เริ่มลากจากแผงเลือกหรือช่องตอบ
+  const handleDragStart = (e: React.DragEvent, image: SequentialImageItem, source: 'pool' | 'slot') => {
+    setDraggedImage(image);
+    setDragSource(source);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  // วางลงในช่องตอบ (slot)
+  const handleDropOnSlot = (e: React.DragEvent, slotIdx: number) => {
+    e.preventDefault();
+    if (!draggedImage) return;
+    setSelectedOrder(prev => {
+      const copy = [...prev];
+      // ถ้าลากจาก slot อื่น ให้ช่องต้นทางเป็น null
+      if (dragSource === 'slot') {
+        const fromIdx = prev.findIndex(item => item && item.id === draggedImage.id);
+        if (fromIdx !== -1) copy[fromIdx] = null;
+      }
+      // วางทับช่องเป้าหมาย (ถ้ามีรูปเดิมในช่องนี้จะถูกแทนที่และช่องเดิมจะว่าง)
+      copy[slotIdx] = draggedImage;
+      // Play card sound
+      if (cardSoundRef.current) {
+        cardSoundRef.current.currentTime = 0;
+        cardSoundRef.current.play().catch(() => {});
+      }
+      return copy;
+    });
+    setDraggedImage(null);
+    setDragSource(null);
+  };
+
+  // วางกลับลงแผงเลือก (pool)
+  const handleDropOnPool = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!draggedImage) return;
+    if (dragSource === 'slot') {
+      setSelectedOrder(prev => {
+        const copy = [...prev];
+        const fromIdx = prev.findIndex(item => item && item.id === draggedImage.id);
+        if (fromIdx !== -1) copy[fromIdx] = null;
+        // Play card sound
+        if (cardSoundRef.current) {
+          cardSoundRef.current.currentTime = 0;
+          cardSoundRef.current.play().catch(() => {});
+        }
+        return copy;
+      });
+    }
+    setDraggedImage(null);
+    setDragSource(null);
+  };
 
   useEffect(() => {
     if (isDailyMode && !gameStarted && !gameCompleted) {
@@ -397,6 +480,100 @@ export default function SequentialMemoryGame() {
             <div className="relative z-10 bg-white/80 px-8 py-4 rounded-full shadow-lg text-blue-600 font-bold animate-pulse text-xl">
                 กำลังเตรียมเกม...
             </div>
+
+            {/* เฉลยและตรวจคำตอบ */}
+            <div className="w-full max-w-2xl mx-auto mt-8 mb-4">
+              <h3 className="text-2xl font-bold text-blue-800 mb-4">ตรวจคำตอบของคุณ</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* เฉลยลำดับที่ถูกต้อง */}
+                <div>
+                  <div className="font-bold text-green-700 mb-2">ลำดับที่ถูกต้อง</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {images.map((img, idx) => (
+                      <div key={img.id} className="flex flex-col items-center justify-center bg-green-50 border-2 border-green-300 rounded-2xl p-2 shadow">
+                        {img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
+                          <img src={img.imageUrl} alt={img.label} className="w-16 h-16 object-contain mb-1" />
+                        ) : (
+                          <span className="text-3xl font-bold text-green-900 mb-1">{img.label}</span>
+                        )}
+                        <span className="text-lg font-bold text-green-800">{idx+1}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* คำตอบของคุณ */}
+                <div>
+                  <div className="font-bold text-blue-700 mb-2">คำตอบของคุณ</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {selectedOrder.map((img, idx) => {
+                      const isCorrect = img && img.id === images[idx].id;
+                      return (
+                        <div key={idx} className={`flex flex-col items-center justify-center rounded-2xl p-2 shadow border-2 ${isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-400 animate-pulse'}`}>
+                          {img ? (
+                            img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
+                              <img src={img.imageUrl} alt={img.label} className="w-16 h-16 object-contain mb-1" />
+                            ) : (
+                              <span className="text-3xl font-bold text-blue-900 mb-1">{img.label}</span>
+                            )
+                          ) : (
+                            <span className="text-3xl font-bold text-gray-400 mb-1">-</span>
+                          )}
+                          <span className={`text-lg font-bold ${isCorrect ? 'text-green-800' : 'text-red-700'}`}>{idx+1}</span>
+                          {!isCorrect && <span className="text-xs text-red-500 font-bold mt-1">ผิด</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* เฉลยและตรวจคำตอบ */}
+            <div className="w-full max-w-2xl mx-auto mt-8 mb-4">
+              <h3 className="text-2xl font-bold text-blue-800 mb-4">ตรวจคำตอบของคุณ</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* เฉลยลำดับที่ถูกต้อง */}
+                <div>
+                  <div className="font-bold text-green-700 mb-2">ลำดับที่ถูกต้อง</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {images.map((img, idx) => (
+                      <div key={img.id} className="flex flex-col items-center justify-center bg-green-50 border-2 border-green-300 rounded-2xl p-2 shadow">
+                        {img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
+                          <img src={img.imageUrl} alt={img.label} className="w-16 h-16 object-contain mb-1" />
+                        ) : (
+                          <span className="text-3xl font-bold text-green-900 mb-1">{img.label}</span>
+                        )}
+                        <span className="text-lg font-bold text-green-800">{idx+1}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* คำตอบของคุณ */}
+                <div>
+                  <div className="font-bold text-blue-700 mb-2">คำตอบของคุณ</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {selectedOrder.map((img, idx) => {
+                      const isCorrect = img && img.id === images[idx].id;
+                      return (
+                        <div key={idx} className={`flex flex-col items-center justify-center rounded-2xl p-2 shadow border-2 ${isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-400 animate-pulse'}`}>
+                          {img ? (
+                            img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
+                              <img src={img.imageUrl} alt={img.label} className="w-16 h-16 object-contain mb-1" />
+                            ) : (
+                              <span className="text-3xl font-bold text-blue-900 mb-1">{img.label}</span>
+                            )
+                          ) : (
+                            <span className="text-3xl font-bold text-gray-400 mb-1">-</span>
+                          )}
+                          <span className={`text-lg font-bold ${isCorrect ? 'text-green-800' : 'text-red-700'}`}>{idx+1}</span>
+                          {!isCorrect && <span className="text-xs text-red-500 font-bold mt-1">ผิด</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
         </div>
       );
   }
@@ -445,7 +622,7 @@ export default function SequentialMemoryGame() {
 
                 {demoStep === 2 && (
                   <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-3xl border-2 border-yellow-200 p-6 text-center">
-                    <p className="text-xl font-bold text-yellow-900 mb-4">ขั้นที่ 2: ซ่อนภาพ แล้วย้ายตำแหน่ง</p>
+                    <p className="text-xl font-bold text-yellow-900 mb-3">ขั้นที่ 2: เตรียมซ่อนภาพ</p>
                     <div className="flex justify-center gap-3">
                       {demoShuffled.map((img, idx) => (
                         <div key={img.id} className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-white shadow border-2 border-yellow-200 flex items-center justify-center text-4xl">
@@ -521,52 +698,52 @@ export default function SequentialMemoryGame() {
         {(!gameStarted) ? (
           <div className="w-full max-w-5xl flex flex-col items-center animate-fade-in my-auto pb-40">
 
-            <div className="text-center mb-8">
-              <div className="inline-block p-4 bg-[#FFD180] rounded-[2rem] shadow-sm mb-3">
-                <span className="text-7xl filter drop-shadow-sm">🖼️</span>
+            <div className="text-center mb-6">
+              <div className="inline-block p-6 bg-[#FFD180] rounded-[2.5rem] shadow-lg mb-4">
+                <span className="text-8xl filter drop-shadow-sm">🖼️</span>
               </div>
-              <h1 className="text-5xl md:text-6xl font-black text-[#1e3a8a] mb-2 tracking-tight drop-shadow-sm">
+              <h1 className="text-6xl md:text-7xl font-black text-[#1e3a8a] mb-3 tracking-tight drop-shadow-sm">
                 เกมจำลำดับภาพ
               </h1>
               <p className="text-xl text-slate-700 font-bold mb-1">ฝึกความจำและลำดับ</p>
-              <p className="text-lg text-slate-500 font-medium">จำลำดับรูปภาพ แล้วเรียงให้ถูกต้อง</p>
+              <p className="text-base text-slate-500 font-medium">จำลำดับรูปภาพ แล้วเรียงให้ถูกต้อง</p>
             </div>
 
             {/* ปุ่มฟังคำแนะนำ + ตัวอย่างการเล่น */}
-            <div className="flex flex-row justify-center mb-6 gap-4 items-center w-full">
+            <div className="flex flex-row justify-center mb-8 gap-4 items-center w-full">
               <button 
                 onClick={() => speak('เลือกระดับเกม แล้วกดปุ่มเริ่มเล่นเพื่อเริ่มเกมครับ')}
-                className="flex items-center justify-center gap-2 font-bold px-8 h-16 rounded-full min-w-[240px] cursor-pointer hover:scale-105 shadow-lg hover:shadow-xl transition-all text-lg border-b-4 text-indigo-700 bg-white/90 hover:bg-white border-indigo-200"
+                className="flex items-center justify-center gap-2 font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 shadow-md hover:shadow-lg transition-all text-base border-2 text-indigo-700 bg-white hover:bg-indigo-50 border-indigo-200"
                 type="button"
               >
-                <span className="text-2xl">🔊</span>
+                <span className="text-xl">🔊</span>
                 <span>ฟังคำแนะนำ</span>
               </button>
               <button
                 onClick={startDemo}
-                className="flex items-center justify-center gap-2 font-bold px-8 h-16 rounded-full min-w-[240px] cursor-pointer hover:scale-105 shadow-lg hover:shadow-xl transition-all text-lg border-b-4 text-yellow-900 bg-[#FDE047] hover:bg-yellow-300 border-[#EAB308]"
+                className="flex items-center justify-center gap-2 font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 shadow-md hover:shadow-lg transition-all text-base border-2 text-yellow-900 bg-[#FDE047] hover:bg-yellow-300 border-yellow-400"
                 type="button"
               >
-                <span className="text-2xl">💡</span>
+                <span className="text-xl">💡</span>
                 <span>ตัวอย่างการเล่น</span>
               </button>
             </div>
             
-            <div className="flex flex-col md:flex-row gap-8 w-full max-w-2xl justify-center items-stretch mb-10 px-4">
+            <div className="flex flex-col md:flex-row gap-6 w-full max-w-xl justify-center items-stretch mb-8 px-4">
               <button
                 onClick={() => {
                   setDifficulty(1);
-                  if (!soundDisabled) speak("เลือกระดับธรรมดา จำนวนรูปน้อย เหมาะเริ่มฝึกฝน");
+                  if (!soundDisabled) speak("เลือกระดับง่าย จำนวนรูปน้อย เหมาะเริ่มฝึกฝน");
                 }}
-                className={`flex-1 group relative bg-white rounded-[2.5rem] p-8 transition-all duration-300 flex flex-col items-center justify-center border-4
+                className={`flex-1 group relative bg-white rounded-[2rem] p-6 transition-all duration-300 flex flex-col items-center justify-center
                   ${difficulty === 1
-                    ? 'border-[#60A5FA] shadow-[0_0_20px_rgba(96,165,250,0.6)] scale-105 z-20 ring-4 ring-blue-100'
-                    : 'border-transparent shadow-lg hover:border-blue-200 hover:-translate-y-1 hover:shadow-xl'
+                    ? 'shadow-[0_4px_20px_rgba(59,130,246,0.5)] scale-[1.02] border-4 border-blue-400'
+                    : 'shadow-lg border-4 border-transparent hover:border-blue-200 hover:shadow-xl'
                   }`}
               >
-                <div className="w-24 h-24 bg-orange-100 rounded-full flex items-center justify-center text-6xl mb-4 shadow-inner">😊</div>
-                <h3 className={`text-3xl font-black mb-2 ${difficulty === 1 ? 'text-[#2563EB]' : 'text-[#1e3a8a]'}`}>ระดับธรรมดา</h3>
-                <p className="text-sm text-slate-500 font-bold">จำนวนรูปน้อย เริ่มต้นฝึกฝน</p>
+                <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center text-5xl mb-3 shadow-sm">😊</div>
+                <h3 className={`text-2xl font-black mb-1 ${difficulty === 1 ? 'text-[#2563EB]' : 'text-[#1e3a8a]'}`}>ระดับง่าย</h3>
+                <p className="text-xs text-slate-500 font-semibold">จำนวนรูปน้อย เริ่มต้นฝึกฝน</p>
               </button>
 
               <button
@@ -574,27 +751,27 @@ export default function SequentialMemoryGame() {
                   setDifficulty(2);
                   if (!soundDisabled) speak("เลือกระดับยาก ท้าทายความจำ จำนวนรูปเยอะขึ้น");
                 }}
-                className={`flex-1 group relative bg-white rounded-[2.5rem] p-8 transition-all duration-300 flex flex-col items-center justify-center border-4
+                className={`flex-1 group relative bg-white rounded-[2rem] p-6 transition-all duration-300 flex flex-col items-center justify-center
                   ${difficulty === 2
-                    ? 'border-[#A855F7] shadow-[0_0_20px_rgba(168,85,247,0.6)] scale-105 z-20 ring-4 ring-purple-100'
-                    : 'border-transparent shadow-lg hover:border-purple-200 hover:-translate-y-1 hover:shadow-xl'
+                    ? 'shadow-[0_4px_20px_rgba(168,85,247,0.5)] scale-[1.02] border-4 border-purple-400'
+                    : 'shadow-lg border-4 border-transparent hover:border-purple-200 hover:shadow-xl'
                   }`}
               >
-                <div className="w-24 h-24 bg-pink-100 rounded-full flex items-center justify-center text-6xl mb-4 shadow-inner">🤓</div>
-                <h3 className={`text-3xl font-black mb-2 ${difficulty === 2 ? 'text-[#7C3AED]' : 'text-[#581c87]'}`}>ระดับยาก</h3>
-                <p className="text-sm text-slate-500 font-bold">ท้าทายความจำ จำนวนรูปเยอะขึ้น</p>
+                <div className="w-20 h-20 bg-pink-100 rounded-full flex items-center justify-center text-5xl mb-3 shadow-sm">🤓</div>
+                <h3 className={`text-2xl font-black mb-1 ${difficulty === 2 ? 'text-[#7C3AED]' : 'text-[#581c87]'}`}>ระดับยาก</h3>
+                <p className="text-xs text-slate-500 font-semibold">ท้าทายความจำ จำนวนรูปเยอะขึ้น</p>
               </button>
             </div>
 
-            <div className="flex flex-col items-center gap-4 w-full max-w-xs px-4 relative z-20">
+            <div className="flex flex-col items-center gap-3 w-full max-w-xs px-4 relative z-20">
               {/* ปุ่มเริ่มเล่น */}
               <button
-                onClick={() => { if (!soundDisabled) speak("เริ่มเกมครับ"); initializeGame(); }}
+                onClick={() => { if (!difficulty) return; if (!soundDisabled) speak("เริ่มเกมครับ"); initializeGame(); }}
                 disabled={!difficulty}
-                className={`w-full py-4 rounded-2xl text-2xl font-black shadow-lg transition-all duration-200
-                  ${difficulty
-                    ? 'bg-gradient-to-r from-[#A855F7] to-[#8B5CF6] text-white hover:scale-105 hover:shadow-purple-300/50 cursor-pointer border-b-4 border-[#7E22CE]'
-                    : 'bg-slate-300 text-slate-500 cursor-not-allowed border-b-4 border-slate-400'
+                className={`w-full py-3.5 rounded-[2rem] text-xl font-black shadow-md transition-all duration-200
+                  ${!difficulty
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-[#A855F7] to-[#8B5CF6] text-white hover:scale-105 hover:shadow-lg cursor-pointer'
                   }`}
               >
                 เริ่มเล่น
@@ -606,9 +783,9 @@ export default function SequentialMemoryGame() {
                     cancel();
                     setTimeout(() => router.push('/welcome'), 100);
                   }}
-                  className="px-8 py-3 rounded-2xl bg-[#3B82F6] text-white font-bold text-lg hover:bg-[#2563EB] transition-all shadow-md flex items-center gap-2 border-b-4 border-[#1D4ED8]"
+                  className="w-full py-3.5 rounded-[2rem] bg-[#3B82F6] text-white font-black text-xl hover:bg-[#2563EB] transition-all shadow-md"
                 >
-                  <span></span> กลับหน้าหลัก
+                  หน้าเลือกเกม
                 </button>
               )}
             </div>
@@ -627,8 +804,8 @@ export default function SequentialMemoryGame() {
                       <span className="text-2xl font-bold text-blue-700 mb-1">คะแนนที่ได้</span>
                     </div>
                     <div className="flex flex-row items-end justify-center mb-2 gap-2">
-                      <span className="text-6xl font-extrabold text-green-700 drop-shadow-lg leading-none">{score100}</span>
-                      <span className="text-4xl font-bold text-blue-700 leading-none">/ 100</span>
+                      <span className="text-6xl font-extrabold text-green-700 drop-shadow-lg leading-none">{score}</span>
+                      <span className="text-4xl font-bold text-blue-700 leading-none">/ {images.length}</span>
                     </div>
                   </div>
                   {/* จำนวนที่ตอบถูก */}
@@ -650,6 +827,53 @@ export default function SequentialMemoryGame() {
                     <span className="text-2xl font-bold text-yellow-700 mb-1">ใช้เวลา</span>
                     <span className="text-6xl font-extrabold text-orange-500 drop-shadow-lg leading-none mt-2">{timeElapsed}</span>
                     <span className="text-xl font-bold text-yellow-700 leading-none">วินาที</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* เฉลยและตรวจคำตอบ */}
+            <div className="w-full max-w-2xl mx-auto mt-8 mb-4">
+              <h3 className="text-2xl font-bold text-blue-800 mb-4">ตรวจคำตอบของคุณ</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* เฉลยลำดับที่ถูกต้อง */}
+                <div>
+                  <div className="font-bold text-green-700 mb-2">ลำดับที่ถูกต้อง</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {images.map((img, idx) => (
+                      <div key={img.id} className="flex flex-col items-center justify-center bg-green-50 border-2 border-green-300 rounded-2xl p-2 shadow">
+                        {img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
+                          <img src={img.imageUrl} alt={img.label} className="w-16 h-16 object-contain mb-1" />
+                        ) : (
+                          <span className="text-3xl font-bold text-green-900 mb-1">{img.label}</span>
+                        )}
+                        <span className="text-lg font-bold text-green-800">{idx+1}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* คำตอบของคุณ */}
+                <div>
+                  <div className="font-bold text-blue-700 mb-2">คำตอบของคุณ</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {selectedOrder.map((img, idx) => {
+                      const isCorrect = img && img.id === images[idx].id;
+                      return (
+                        <div key={idx} className={`flex flex-col items-center justify-center rounded-2xl p-2 shadow border-2 ${isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-400 animate-pulse'}`}>
+                          {img ? (
+                            img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
+                              <img src={img.imageUrl} alt={img.label} className="w-16 h-16 object-contain mb-1" />
+                            ) : (
+                              <span className="text-3xl font-bold text-blue-900 mb-1">{img.label}</span>
+                            )
+                          ) : (
+                            <span className="text-3xl font-bold text-gray-400 mb-1">-</span>
+                          )}
+                          <span className={`text-lg font-bold ${isCorrect ? 'text-green-800' : 'text-red-700'}`}>{idx+1}</span>
+                          {!isCorrect && <span className="text-xs text-red-500 font-bold mt-1">ผิด</span>}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -680,7 +904,7 @@ export default function SequentialMemoryGame() {
                   onClick={() => { setGameStarted(false); setGameCompleted(false); setScore(0); setSelectedOrder([]); setTimeElapsed(0); }}
                   className="mt-6 px-10 py-5 rounded-2xl bg-blue-100 text-blue-700 font-bold text-2xl hover:bg-blue-200 transition-all shadow-lg border border-blue-200"
                 >
-                    กลับเมนูหลัก
+                    หน้าเลือกเกม
                 </button>
             )}
           </div>
@@ -699,13 +923,13 @@ export default function SequentialMemoryGame() {
                   className="flex items-center gap-2 px-6 py-2 rounded-full bg-purple-300 text-purple-800 font-bold text-xl shadow hover:bg-purple-400 transition-all border-2 border-purple-200"
                   style={{ minWidth: 110 }}
                 >
-                  <span className="text-lg">❮</span> กลับ
+                  <span className="text-lg">✕</span> เลิกเล่น
                 </button>
               )}
               
               <div className="flex-1 flex flex-col items-end">
                 <span className="text-xs font-bold text-blue-200 uppercase tracking-widest mb-1 pr-1">LEVEL</span>
-                <span className="text-3xl font-extrabold text-blue-700 drop-shadow-sm">{difficulty === 1 ? 'ระดับธรรมดา' : 'ระดับยาก'}</span>
+                <span className="text-3xl font-extrabold text-blue-700 drop-shadow-sm">{difficulty === 1 ? 'ระดับง่าย' : 'ระดับยาก'}</span>
               </div>
             </div>
 
@@ -714,9 +938,7 @@ export default function SequentialMemoryGame() {
               <>
                 {!showImages && (
                   <div className="w-full flex flex-col items-center gap-3 mb-4">
-                    <div className="inline-block bg-blue-50 rounded-full px-8 py-3 text-blue-700 font-extrabold text-2xl shadow-lg border-2 border-blue-300" style={{letterSpacing: '0.5px'}}>
-                      <span role="img" aria-label="point-down" style={{fontSize: '2rem', verticalAlign: 'middle'}}>👇</span> <span style={{fontSize: '2rem'}}>เลือกรูปภาพด้านล่างตามลำดับที่จำได้</span>
-                    </div>
+                    {/* กล่องข้อความ '👇 เลือกรูปภาพด้านล่างตามลำดับที่จำได้' ถูกลบตามคำขอ */}
                     {/* ปุ่มฟังซ้ำช่วงตอบ */}
                     <button
                       onClick={() => speak(' ให้เรียงรูปภาพด้านล่าง... ตามลำดับที่จำได้เมื่อกี้เลยนะครับ')}
@@ -788,70 +1010,74 @@ export default function SequentialMemoryGame() {
               </div>
             ) : (
               <>
-                {/* ช่องวางคำตอบ */}
-                <div className="flex gap-4 justify-center mb-8 flex-wrap">
-                  {Array.from({ length: images.length }).map((_, idx) => (
-                    <div
-                      key={idx}
-                      className={`aspect-square w-28 h-28 md:w-32 md:h-32 rounded-2xl flex items-center justify-center border-4 cursor-pointer transition-all ${
-                        selectedOrder[idx]
-                          ? "bg-white border-green-400 shadow-md"
-                          : "bg-white/50 border-dashed border-gray-300 hover:bg-white hover:border-gray-400"
-                      }`}
-                      onClick={() =>
-                        selectedOrder[idx] && handleRemoveFromSlot(idx)
-                      }
-                    >
-                      {!selectedOrder[idx] && (
-                        <span className="text-4xl font-bold text-gray-300 select-none">{idx + 1}</span>
-                      )}
 
-                      {selectedOrder[idx] ? (
-                        selectedOrder[idx]?.imageUrl &&
-                        selectedOrder[idx]?.imageUrl.startsWith("/memory-images/") && !broken[idx] ? (
-                          <img
-                            src={selectedOrder[idx]!.imageUrl}
-                            alt={selectedOrder[idx]!.label}
-                            className="w-full h-full object-contain rounded-xl"
-                            onError={() => setBrokenAt(idx)}
-                          />
-                        ) : (
-                          <span className="text-5xl font-bold text-blue-900">
-                            {selectedOrder[idx]?.label}
-                          </span>
-                        )
-                      ) : null}
+                {/* ปรับ layout เป็น 3 คอลัมน์: สถิติ (250px), ช่องตอบ (flex-1), แผงเลือก (420px) */}
+                <div className="w-full max-w-6xl mx-auto mb-8 flex flex-col gap-8 items-center justify-center">
+                  {/* 1. สถิติ (ซ้าย) */}
+                  <div className="w-full lg:w-[250px] flex flex-col gap-4">
+                    {/* กล่องสถิติ 'เวลา' และ 'เลือกแล้ว' ถูกลบตามคำขอ */}
+                    {/* ปุ่มยกเลิกถูกลบตามคำขอ */}
+                  </div>
+
+                  {/* 2. ช่องตอบ (กลาง) */}
+                  <div className="w-full max-w-xs md:max-w-md lg:max-w-xl flex flex-col items-center bg-white/30 backdrop-blur-sm p-2 md:p-6 rounded-[4rem] border-8 border-dashed border-blue-200 shadow-inner mx-auto">
+                    <h3 className="text-2xl font-black text-blue-800 mb-6 bg-white/80 px-8 py-2 rounded-full shadow-sm">🧩 วางภาพลำดับที่นี่</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 w-full max-w-xs md:max-w-md lg:max-w-xl">
+                      {Array.from({ length: images.length }).map((_, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => selectedOrder[idx] && handleRemoveFromSlot(idx)}
+                          onDragOver={handleDragOver}
+                          onDrop={e => handleDropOnSlot(e, idx)}
+                          className={`relative aspect-square rounded-xl border-4 flex items-center justify-center cursor-pointer transition-all duration-300 shadow-xl overflow-hidden
+                            ${selectedOrder[idx] ? "bg-white border-green-400 scale-105" : "bg-gray-50/50 border-gray-200 hover:bg-white hover:border-blue-300"}`}
+                          draggable={!!selectedOrder[idx]}
+                          onDragStart={selectedOrder[idx] ? (e) => handleDragStart(e, selectedOrder[idx]!, 'slot') : undefined}
+                        >
+                          {!selectedOrder[idx] && <span className="text-6xl font-black text-gray-200">{idx + 1}</span>}
+                          {selectedOrder[idx] && <img src={selectedOrder[idx]!.imageUrl} className="w-full h-full object-contain p-4" />}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
 
-                {/* ตัวเลือกให้กด */}
-                <div className="flex gap-4 justify-center mb-8 flex-wrap">
-                  {shuffledImages
-                    .filter(
-                      (img) =>
-                        !selectedOrder.some(
-                          (sel) => sel && sel.id === img.id
+                  {/* 3. แผงเลือกรูปภาพ (ล่าง) */}
+                  <div className="w-full max-w-xs md:max-w-md lg:max-w-xl h-auto max-h-fit mt-2 mx-auto">
+                    <div
+                      className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-8 pb-2 mt-[-32px] ml-8 md:ml-16"
+                      onDragOver={handleDragOver}
+                      onDrop={handleDropOnPool}
+                    >
+                      {shuffledImages
+                        .filter(
+                          (img) =>
+                            !selectedOrder.some(
+                              (sel) => sel && sel.id === img.id
+                            )
                         )
-                    )
-                    .map((image) => (
-                      <button
-                        key={image.id}
-                        onClick={() => handleImageClick(image)}
-                        className="aspect-square w-24 h-24 md:w-28 md:h-28 rounded-2xl flex items-center justify-center transition-all border-b-4 bg-white border-blue-300 hover:scale-105 hover:bg-blue-50 shadow-md active:border-b-0 active:translate-y-1"
-                      >
-                        {image.imageUrl && image.imageUrl.startsWith("/memory-images/") && !broken[image.order] ? (
-                          <img
-                            src={image.imageUrl}
-                            alt={image.label}
-                            className="w-full h-full object-contain rounded-xl p-1"
-                            onError={() => setBrokenAt(image.order)}
-                          />
-                        ) : (
-                          <span className="text-4xl font-bold text-blue-900">{image.label}</span>
-                        )}
-                      </button>
-                    ))}
+                        .map((image) => (
+                          <button
+                            key={image.id}
+                            onClick={() => handleImageClick(image)}
+                            onDragStart={(e) => handleDragStart(e, image, 'pool')}
+                            draggable
+                            className="relative w-24 h-24 rounded-lg border-8 bg-white shadow p-1 flex items-center justify-center transition-all hover:scale-105 active:scale-95 hover:border-blue-400 overflow-hidden cursor-grab active:cursor-grabbing"
+                          >
+                            {image.imageUrl && image.imageUrl.startsWith("/memory-images/") && !broken[image.order] ? (
+                              <img
+                                src={image.imageUrl}
+                                alt={image.label}
+                                className="w-5/6 h-5/6 object-contain pointer-events-none"
+                                onError={() => setBrokenAt(image.order)}
+                              />
+                            ) : (
+                              <span className="text-3xl font-black text-blue-900">{image.label}</span>
+                            )}
+                          </button>
+                        ))}
+                    </div>
+                    {/* ปรับความสูงของกรอบให้ auto ไม่ min-h, ไม่ max-h, ไม่ h-full */}
+                  </div>
                 </div>
 
                 {/* ปุ่มตรวจคำตอบ */}

@@ -4,7 +4,7 @@ import clientPromise from "@/lib/mongodb";
 // 1. บันทึกคะแนน (POST)
 export async function POST(req: Request) {
   try {
-    const { userId, gameType, score } = await req.json();
+    const { userId, gameType, score, timeUsed } = await req.json();
 
     if (!userId || !gameType || score === undefined) {
       return NextResponse.json(
@@ -17,12 +17,19 @@ export async function POST(req: Request) {
     const db = client.db("game_db");
     const collection = db.collection("game_history");
 
-    await collection.insertOne({
+    const insertData: any = {
       userId,
       gameType,
       score: Number(score),
       createdAt: new Date(),
-    });
+    };
+
+    // เพิ่ม timeUsed ถ้ามีการส่งมา (สำหรับเกมจำศัพท์)
+    if (timeUsed !== undefined) {
+      insertData.timeUsed = Number(timeUsed);
+    }
+
+    await collection.insertOne(insertData);
 
     return NextResponse.json({ success: true, message: "บันทึกคะแนนสำเร็จ" });
   } catch (error) {

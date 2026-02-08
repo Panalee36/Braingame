@@ -39,9 +39,9 @@
       "icons": [{ "src": "/icon-game-1.png", "sizes": "192x192" }]
     },
     {
-      "name": "เกมบวกเลข",
+      "name": "บวกลบเลข",
       "short_name": "Math Game",
-      "description": "เล่นเกมบวกเลข",
+      "description": "เล่นเกมบวกลบเลข",
       "url": "/games/fast-math",
       "icons": [{ "src": "/icon-game-2.png", "sizes": "192x192" }]
     }

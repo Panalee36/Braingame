@@ -74,8 +74,23 @@ export default function AnimalSoundGame() {
         setHasInteracted(true);
     }
   }, [isDailyMode]);
+
   const [soundDisabled, setSoundDisabled] = useState(false);
   const hasSpokenWelcome = useRef(false);
+
+  // Daily-quiz: force hasInteracted true, and sync soundDisabled from query param
+  useEffect(() => {
+    if (isDailyMode) {
+      setHasInteracted(true);
+      // If sound param is present, sync soundDisabled
+      const soundParam = searchParams.get('sound');
+      if (soundParam === 'off') {
+        setSoundDisabled(true);
+      } else if (soundParam === 'on') {
+        setSoundDisabled(false);
+      }
+    }
+  }, [isDailyMode, searchParams]);
 
   // ✅ เพิ่ม State สำหรับกันการบันทึกซ้ำ
   const [isSaving, setIsSaving] = useState(false);
@@ -90,6 +105,7 @@ export default function AnimalSoundGame() {
   const [totalTime, setTotalTime] = useState(0)
   const [questionsAnswered, setQuestionsAnswered] = useState(0)
   const [correctAnswers, setCorrectAnswers] = useState(0)
+  const [answers, setAnswers] = useState<boolean[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
   // เก็บ index ของสัตว์ที่ใช้ไปแล้วในรอบนี้
   const [usedAnimalIndexes, setUsedAnimalIndexes] = useState<number[]>([])
@@ -152,6 +168,11 @@ export default function AnimalSoundGame() {
 
   // ฟังก์ชันเริ่มเกม: สุ่มลำดับ 5 ตัวที่ไม่ซ้ำ
   const initializeGame = () => {
+    // ... โค้ดอื่นๆ ...
+    setQuestionsAnswered(0);
+    setCorrectAnswers(0); // สำคัญมาก: ต้องล้างคะแนนเก่าทิ้งทุกครั้งที่เริ่มใหม่
+    setAnswers([]);
+    // ...existing code...
     cancel();
     setIsSaving(false); // ✅ Reset สถานะการบันทึก
     setHasGivenInstructions(false); // ✅ Reset เพื่อให้พูดอธิบายใหม่เมื่อเริ่มเกมใหม่
@@ -159,22 +180,18 @@ export default function AnimalSoundGame() {
     const totalAnimals = animalList.length;
     // สร้าง Array ของ Index ทั้งหมด [0, 1, 2, ..., total-1]
     const allIndexes = Array.from({ length: totalAnimals }, (_, i) => i);
-    
     // Shuffle (Fisher-Yates) เพื่อให้ลำดับไม่ซ้ำ
     for (let i = allIndexes.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [allIndexes[i], allIndexes[j]] = [allIndexes[j], allIndexes[i]];
     }
-    
     // ตัดมาใช้แค่ 5 ตัวแรก
     const animalIndexes = allIndexes.slice(0, Math.min(maxQuestions, totalAnimals));
     console.log('สุ่ม index สัตว์ 5 ข้อ:', animalIndexes);
     setUsedAnimalIndexes(animalIndexes);
-
     // เริ่มที่ข้อแรก (index ที่ 0 ใน array ที่สุ่มมา)
     const animal = animalList[animalIndexes[0]];
     if (!animal) return;
-
     // สร้างตัวเลือก (Options)
     const otherIndexes = Array.from({ length: totalAnimals }, (_, i) => i).filter(idx => idx !== animalIndexes[0]);
     const shuffled = otherIndexes.sort(() => Math.random() - 0.5).slice(0, 3);
@@ -188,7 +205,6 @@ export default function AnimalSoundGame() {
         soundUrl: a.sound,
         imageUrl: a.image,
       }));
-
     setCurrentAnimal({
       id: `animal-0`,
       name: animal.name,
@@ -198,8 +214,6 @@ export default function AnimalSoundGame() {
     setOptions(opts);
     setGameStarted(true);
     setGameCompleted(false);
-    setQuestionsAnswered(0);
-    setCorrectAnswers(0);
     setSelectedAnswer(null);
     setAnswered(false);
     setSoundPlayed(false);
@@ -238,32 +252,42 @@ export default function AnimalSoundGame() {
       });
       setOptions(opts);
       setSelectedAnswer(null);
-      setAnswered(false);
+      setAnswered(false); // Reset answered immediately
       setSoundPlayed(false);
     }
   }
 
   const handleAnswer = (animalName: string) => {
-    if (answered) return
-    setSelectedAnswer(animalName)
-    setAnswered(true)
+  if (answered) return;
+  
+  const isCorrect = animalName === currentAnimal?.name;
+  setSelectedAnswer(animalName);
+  setAnswered(true);
 
-    setQuestionsAnswered((prev) => {
-      const next = prev + 1; // คำนวณข้อถัดไป (เช่น ตอนนี้ 0 ตอบเสร็จจะเป็น 1)
-      if (animalName === currentAnimal?.name) {
-        setCorrectAnswers((c) => c + 1)
-      }
-      setTimeout(() => {
-        if (next < maxQuestions) {
-          // ✅ ส่งค่า next ไปให้ loadNextQuestion โดยตรง เพื่อป้องกันการอ่านค่าเก่า
-          loadNextQuestion(next); 
-        } else {
-          setGameCompleted(true)
-        }
-      }, 1500)
-      return next
-    })
+  // 1. เพิ่มคะแนนทันทีถ้าถูก (ไม่ต้องรอคำนวณจาก Array ภายหลังเพื่อความแม่นยำ)
+  if (isCorrect) {
+    setCorrectAnswers(prev => prev + 1);
   }
+
+  // 2. เก็บประวัติคำตอบ
+  setAnswers(prev => [...prev, isCorrect]);
+
+  // 3. นับจำนวนข้อที่ตอบแล้ว
+  setQuestionsAnswered(prev => {
+    const nextStep = prev + 1;
+    
+    // หน่วงเวลาเพื่อแสดงผลเฉลย (เขียว/แดง) ก่อนไปข้อถัดไป
+    setTimeout(() => {
+      if (nextStep < maxQuestions) {
+        loadNextQuestion(nextStep);
+      } else {
+        setGameCompleted(true);
+      }
+    }, 1500);
+    
+    return nextStep;
+  });
+};
 
   useEffect(() => {
     if (!gameStarted || gameCompleted) return
@@ -272,26 +296,28 @@ export default function AnimalSoundGame() {
   }, [gameStarted, gameCompleted])
 
   // ✅ เพิ่ม useEffect สำหรับบันทึกคะแนนเมื่อจบเกม (ไม่บันทึกถ้าเป็น daily mode)
-  useEffect(() => {
-    if (gameCompleted && !isSaving && !isDailyMode) {
-      setIsSaving(true);
-      const userId = localStorage.getItem('userId');
-      if (userId) {
-        fetch('/api/game/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: userId,
-            gameType: 'animal-sound',
-            score: correctAnswers
-          })
+useEffect(() => {
+  // บันทึกเมื่อจบเกม และไม่ได้อยู่ในโหมด Daily
+  if (gameCompleted && !isSaving && !isDailyMode) {
+    setIsSaving(true);
+    const userId = localStorage.getItem('userId');
+    
+    // ใช้ค่าจาก correctAnswers ได้เลยเพราะเราอัปเดตไว้แล้วใน handleAnswer
+    if (userId) {
+      fetch('/api/game/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId,
+          gameType: 'animal-sound',
+          score: correctAnswers // ใช้ค่านี้ตรงๆ
         })
-        .then(res => res.json())
-        .then(data => console.log('Score saved:', data))
-        .catch(err => console.error('Error saving score:', err));
-      }
+      })
+      .then(res => res.json())
+      .catch(err => console.error('Error saving score:', err));
     }
-  }, [gameCompleted, isSaving, correctAnswers, isDailyMode]);
+  }
+}, [gameCompleted, isSaving, isDailyMode, correctAnswers]);
 
   const playSound = () => {
     if (currentAnimal?.soundUrl) {
@@ -417,9 +443,8 @@ export default function AnimalSoundGame() {
     <div className="min-h-screen font-sans flex flex-col items-center relative overflow-hidden p-4 md:p-6">
       <ExactCartoonTheme />
       <div className="relative z-10 w-full flex flex-col items-center flex-1">
-        
         {/* --- Header Bar --- */}
-        {(gameStarted || gameCompleted) && (
+        {(gameStarted && !gameCompleted) && (
           <div className="w-full max-w-5xl bg-gradient-to-r from-[#f0f9ff] via-white to-[#e0e7ff] rounded-2xl shadow-xl px-10 py-5 mb-7 flex items-center justify-between sticky top-4 z-50 border-2 border-yellow-200 backdrop-blur-[6px] transition-all duration-300 min-h-[70px]">
             {!isDailyMode ? (
               <button
@@ -436,28 +461,18 @@ export default function AnimalSoundGame() {
                   setCorrectAnswers(0);
                   setTotalTime(0);
                 }}
-                className="flex items-center gap-3 text-xl font-bold text-yellow-700 hover:text-yellow-900 transition-colors focus:outline-none"
+                className="bg-gradient-to-b from-yellow-200 to-yellow-100 px-6 py-3 rounded-full shadow-md border-2 border-yellow-200 flex items-center gap-3 transition-all duration-150 hover:scale-105 hover:shadow-[0_0_16px_2px_rgba(253,224,71,0.5)] active:scale-95 active:shadow-[0_0_24px_4px_rgba(253,224,71,0.7)] focus:outline-none"
               >
-                <span className="bg-gradient-to-b from-yellow-200 to-yellow-100 p-3 rounded-full px-6 shadow-md border-2 border-yellow-200 flex items-center gap-2 transition-all duration-150 hover:scale-105 hover:shadow-[0_0_16px_2px_rgba(253,224,71,0.5)] active:scale-95 active:shadow-[0_0_24px_4px_rgba(253,224,71,0.7)]">
-                  <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="28" height="28" rx="8" fill="url(#yellowBtn)" />
-                    <path d="M17.5 8L12 14L17.5 20" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                    <defs>
-                      <linearGradient id="yellowBtn" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
-                        <stop stopColor="#fde047" />
-                        <stop offset="1" stopColor="#fef9c3" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                  <span className="text-xl font-bold text-yellow-700">เลิกเล่น</span>
-                </span>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="#a16207" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="text-xl font-bold text-yellow-700">เลิกเล่น</span>
               </button>
             ) : (
               <div className="px-6 py-3 bg-yellow-50 text-yellow-800 rounded-2xl font-bold flex items-center gap-2 shadow border border-yellow-100"><span>📅</span> ภารกิจประจำวัน</div>
             )}
             <div className="flex flex-col items-center">
-              <span className="text-sm font-bold text-yellow-300 uppercase tracking-widest">GAME</span>
-              <span className="text-2xl font-black text-yellow-700 drop-shadow-sm">เกมฟังเสียงสัตว์</span>
+              
             </div>
           </div>
         )}
@@ -493,32 +508,32 @@ export default function AnimalSoundGame() {
           ) : !gameStarted ? (
             <div className="w-full max-w-xl flex flex-col items-center animate-fade-in my-auto pb-16 relative">
 
-              <div className="text-center mb-7">
-                <div className="inline-block p-8 bg-white rounded-[2.5rem] shadow-2xl mb-6 transform -rotate-2 hover:rotate-2 transition-transform border-4 border-[#e0e7ee]" style={{ boxShadow: '0 8px 32px 0 rgba(0,0,0,0.10), 0 2px 8px 0 rgba(0,0,0,0.08)' }}>
-                  <span className="text-[5rem] filter drop-shadow-lg">🐕</span>
+              <div className="text-center mb-6">
+                <div className="inline-block p-6 bg-white rounded-[2.5rem] shadow-lg mb-4 border-4 border-[#e0e7ee]" style={{ boxShadow: '0 8px 32px 0 rgba(0,0,0,0.10), 0 2px 8px 0 rgba(0,0,0,0.08)' }}>
+                  <span className="text-8xl filter drop-shadow-lg">🐕</span>
                 </div>
-                <h1 className="text-4xl md:text-5xl font-black text-[#234d20] mb-1 tracking-tight drop-shadow-lg">เกมฟังเสียงสัตว์</h1>
-                <p className="text-lg text-[#1a3a1a] font-bold mb-0.5">ฝึกฟังเสียงและจำแนกสัตว์</p>
-                <p className="text-sm text-[#234d20] font-medium">ฟังเสียงแล้วเลือกสัตว์ที่ถูกต้อง</p>
+                <h1 className="text-6xl md:text-7xl font-black text-[#234d20] mb-3 tracking-tight drop-shadow-lg">เกมฟังเสียงสัตว์</h1>
+                <p className="text-xl text-[#1a3a1a] font-bold mb-0.5">ฝึกฟังเสียงและจำแนกสัตว์</p>
+                <p className="text-base text-[#234d20] font-medium">ฟังเสียงแล้วเลือกสัตว์ที่ถูกต้อง</p>
               </div>
                 {/* ปุ่มฟังคำแนะนำ + ตัวอย่างการเล่น */}
-                <div className="flex flex-row justify-center mb-6 gap-4 items-center w-full">
+                <div className="flex flex-row justify-center mb-8 gap-4 items-center w-full">
                   <button
                     onClick={() => speak("กติกา: กดปุ่มลำโพงเพื่อฟังเสียงสัตว์ แล้วเลือกภาพสัตว์ที่ตรงกับเสียงให้ถูกต้อง")}
-                    className="flex items-center justify-center gap-2 font-bold px-8 h-16 rounded-full min-w-[240px] cursor-pointer hover:scale-105 shadow-lg hover:shadow-xl transition-all text-lg border-b-4 text-indigo-700 bg-white/90 hover:bg-white border-indigo-200"
+                    className="flex items-center justify-center gap-2 font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 shadow-md hover:shadow-lg transition-all text-base border-2 text-indigo-700 bg-white hover:bg-indigo-50 border-indigo-200"
                   >
-                    <span className="text-2xl">🔊</span>
+                    <span className="text-xl">🔊</span>
                     <span>ฟังคำแนะนำ</span>
                   </button>
                   <button
                     onClick={() => { setDemoStep(0); setCurrentAnimal(null); setOptions([]); setSoundPlayed(false); setSelectedAnswer(null); setAnswered(false); setShowDemo(true); }}
-                    className="flex items-center justify-center gap-2 font-bold px-8 h-16 rounded-full min-w-[240px] cursor-pointer hover:scale-105 shadow-lg hover:shadow-xl transition-all text-lg border-b-4 text-yellow-900 bg-[#FDE047] hover:bg-yellow-300 border-[#EAB308]"
+                    className="flex items-center justify-center gap-2 font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 shadow-md hover:shadow-lg transition-all text-base border-2 text-yellow-900 bg-[#FDE047] hover:bg-yellow-300 border-yellow-400"
                   >
-                    <span className="text-2xl">💡</span>
+                    <span className="text-xl">💡</span>
                     <span>ตัวอย่างการเล่น</span>
                   </button>
                 </div>
-                <div className="flex flex-col gap-4 w-full items-center">
+                <div className="flex flex-col gap-3 w-full max-w-xs items-center">
                   <button
                     onClick={() => {
                       if (!soundDisabled) {
@@ -526,11 +541,7 @@ export default function AnimalSoundGame() {
                       }
                       initializeGame();
                     }}
-                    className="bg-gradient-to-r from-[#ffe259] to-[#ffa751] hover:from-[#fff6b7] hover:to-[#fcd34d] active:from-[#fcd34d] active:to-[#fbbf24] text-white text-3xl font-extrabold py-5 px-12 rounded-[2rem] shadow-xl hover:shadow-yellow-200 transition-all w-full border-2 border-[#ffe066] tracking-wide drop-shadow-lg"
-                    style={{
-                      textShadow: '0 2px 8px rgba(255, 193, 7, 0.25)',
-                      boxShadow: '0 8px 24px 0 rgba(255, 193, 7, 0.18), 0 2px 8px 0 rgba(255, 193, 7, 0.10)'
-                    }}
+                    className="w-full py-3.5 rounded-[2rem] text-xl font-black shadow-md transition-all bg-gradient-to-r from-yellow-400 to-yellow-500 text-white hover:scale-105 hover:shadow-lg cursor-pointer"
                   >
                     เริ่มเล่น
                   </button>
@@ -539,13 +550,9 @@ export default function AnimalSoundGame() {
                       cancel();
                       router.push('/welcome');
                     }}
-                    className="bg-gradient-to-r from-[#38bdf8] to-[#2563eb] hover:from-[#60a5fa] hover:to-[#1d4ed8] active:from-[#2563eb] active:to-[#38bdf8] text-white text-2xl font-bold py-4 px-10 rounded-2xl shadow-lg border-2 border-[#2563eb] transition-all w-full drop-shadow-lg"
-                    style={{
-                      textShadow: '0 2px 8px rgba(37, 99, 235, 0.18)',
-                      boxShadow: '0 8px 24px 0 rgba(37, 99, 235, 0.18), 0 2px 8px 0 rgba(37, 99, 235, 0.10)'
-                    }}
+                    className="w-full py-3.5 rounded-[2rem] bg-[#3B82F6] text-white font-black text-xl hover:bg-[#2563EB] transition-all shadow-md"
                   >
-                    กลับหน้าหลัก
+                    หน้าเลือกเกม
                   </button>
                 </div>
             </div>
@@ -556,13 +563,9 @@ export default function AnimalSoundGame() {
                 <h2 className="text-6xl font-black text-yellow-900 mb-4 tracking-tight">เก่งมาก!</h2>
                 <p className="text-2xl text-slate-500 mb-10 font-medium bg-slate-50 inline-block px-6 py-2 rounded-full">{isDailyMode ? 'ภารกิจส่วนนี้เสร็จสิ้นแล้ว' : 'คุณฟังเสียงสัตว์ได้ครบทุกตัวแล้ว'}</p>
                 <div className="grid grid-cols-2 gap-6 mb-10">
-                  <div className="bg-yellow-50 p-6 rounded-3xl border-2 border-yellow-100">
-                    <p className="text-yellow-600 font-bold text-lg mb-1 uppercase tracking-wider">ความถูกต้อง</p>
-                    <p className="text-5xl font-black text-yellow-800">{successRate}%</p>
-                  </div>
-                  <div className="bg-green-50 p-6 rounded-3xl border-2 border-green-100">
-                    <p className="text-green-600 font-bold text-lg mb-1 uppercase tracking-wider">จำนวนสัตว์</p>
-                    <p className="text-5xl font-black text-green-800">{questionsAnswered}</p>
+                  <div className="bg-yellow-50 p-6 rounded-3xl border-2 border-yellow-100 col-span-2 flex flex-col items-center justify-center">
+                    <p className="text-yellow-600 font-bold text-lg mb-1 uppercase tracking-wider">คะแนน</p>
+                    <p className="text-5xl font-black text-yellow-800">{correctAnswers} / {maxQuestions}</p>
                   </div>
                   <div className="bg-blue-50 p-6 rounded-3xl border-2 border-blue-100 col-span-2">
                     <p className="text-blue-600 font-bold text-lg mb-1 uppercase tracking-wider">ใช้เวลา</p>
@@ -581,7 +584,17 @@ export default function AnimalSoundGame() {
                     <button
                       onClick={() => {
                         cancel();
-                        router.push('/welcome');
+                        setGameStarted(false);
+                        setGameCompleted(false);
+                        setShowDemo(false);
+                        setCurrentAnimal(null);
+                        setOptions([]);
+                        setSelectedAnswer(null);
+                        setAnswered(false);
+                        setSoundPlayed(false);
+                        setQuestionsAnswered(0);
+                        setCorrectAnswers(0);
+                        setTotalTime(0);
                       }}
                       className="w-full py-5 px-2 bg-gradient-to-r from-[#34d399] to-[#059669] hover:from-[#6ee7b7] hover:to-[#047857] active:from-[#059669] active:to-[#34d399] text-white font-bold text-2xl rounded-2xl shadow-xl border-2 border-[#059669] transition-all drop-shadow-lg"
                       style={{
@@ -589,7 +602,7 @@ export default function AnimalSoundGame() {
                         boxShadow: '0 8px 24px 0 rgba(34, 211, 102, 0.18), 0 2px 8px 0 rgba(34, 211, 102, 0.10)'
                       }}
                     >
-                      กลับหน้าเมนู
+                      กลับหน้าแรก
                     </button>
                   </div>
                 )}

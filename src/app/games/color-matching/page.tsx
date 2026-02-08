@@ -48,6 +48,7 @@ interface ColorCard {
 }
 
 export default function ColorMatchingGame() {
+    const wrongSoundRef = useRef<HTMLAudioElement | null>(null)
   const router = useRouter();
   const searchParams = useSearchParams();
   const levelParam = searchParams.get('level');
@@ -73,7 +74,7 @@ export default function ColorMatchingGame() {
   const [flippedCards, setFlippedCards] = useState<string[]>([])
   const [matchedPairs, setMatchedPairs] = useState(0)
   const [difficulty, setDifficulty] = useState(1)
-  const getPairCount = () => difficulty === 2 ? 15 : 10;
+  const getPairCount = () => difficulty === 2 ? 15 : 6;
   const [gameStarted, setGameStarted] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
   const [previewing, setPreviewing] = useState(false)
@@ -89,7 +90,7 @@ export default function ColorMatchingGame() {
   const applauseSoundRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
-    const audio = new Audio('/sounds/Soundeffect/Tingsound.mp3')
+    const audio = new Audio('/sounds/Soundeffect/Tingsound.pm3')
     audio.preload = 'auto'
     matchSoundRef.current = audio
     return () => {
@@ -99,7 +100,17 @@ export default function ColorMatchingGame() {
   }, [])
 
   useEffect(() => {
-    const applauseAudio = new Audio('/sounds/Soundeffect/Applause.mp3')
+    const wrongAudio = new Audio('/sounds/Soundeffect/Wrong sound.pm3')
+    wrongAudio.preload = 'auto'
+    wrongSoundRef.current = wrongAudio
+    return () => {
+      wrongAudio.pause()
+      wrongSoundRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const applauseAudio = new Audio('/sounds/Soundeffect/Applause.pm3')
     applauseAudio.load()
     applauseSoundRef.current = applauseAudio
     return () => {
@@ -147,8 +158,10 @@ export default function ColorMatchingGame() {
   // 3.5 เสียงปรบมือตอนจบเกม
   useEffect(() => {
     if (gameCompleted && applauseSoundRef.current && !soundDisabled) {
-      applauseSoundRef.current.currentTime = 0;
-      applauseSoundRef.current.play();
+      setTimeout(() => {
+        applauseSoundRef.current.currentTime = 0;
+        applauseSoundRef.current.play().catch(() => {});
+      }, 300);
     }
   }, [gameCompleted, soundDisabled]);
 
@@ -157,7 +170,7 @@ export default function ColorMatchingGame() {
   const handleSelectLevel = (level: number) => {
     setSelectedLevel(level);
     // เพิ่มเสียงพูดตอนกดเลือก
-    if (!soundDisabled) speak(level === 1 ? "ระดับธรรมดาครับ" : "ระดับยากครับ");
+    if (!soundDisabled) speak(level === 1 ? "ระดับง่ายครับ" : "ระดับยากครับ");
   };
 
   const handleStartGame = () => {
@@ -252,7 +265,14 @@ export default function ColorMatchingGame() {
         setFlippedCards([])
         // speak("ถูกต้องครับ"); // (ตัวเลือกเสริม: ถ้าอยากให้พูดตอนถูก)
       } else {
-        setTimeout(() => { setFlippedCards([]) }, 1000)
+        setTimeout(() => {
+          setFlippedCards([])
+          // Play wrong sound
+          if (wrongSoundRef.current) {
+            wrongSoundRef.current.currentTime = 0;
+            wrongSoundRef.current.play().catch(() => {});
+          }
+        }, 1000)
       }
     }
   }
@@ -275,12 +295,17 @@ export default function ColorMatchingGame() {
   useEffect(() => {
     if (!gameStarted) return
     const totalPairs = Math.floor(cards.length / 2)
-    if (matchedPairs > 0 && matchedPairs === totalPairs) { 
+    if (matchedPairs > 0 && matchedPairs === totalPairs) {
+      // Play applause sound immediately
+      if (applauseSoundRef.current && !soundDisabled) {
+        applauseSoundRef.current.currentTime = 0;
+        applauseSoundRef.current.play().catch(() => {});
+      }
       setTimeout(() => {
         setGameCompleted(true);
       }, 800);
     }
-    }, [matchedPairs, cards, gameStarted, gameCompleted])
+  }, [matchedPairs, cards, gameStarted, gameCompleted, soundDisabled])
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60); const s = seconds % 60;
@@ -409,77 +434,77 @@ export default function ColorMatchingGame() {
         <div className="w-full max-w-5xl flex flex-col items-center animate-fade-in my-auto pb-40"> 
           
           {/* Logo & Title */}
-          <div className="text-center mb-8">
-            <div className="inline-block p-4 bg-[#FFD180] rounded-[2rem] shadow-sm mb-3 transform -rotate-3 hover:rotate-3 transition-transform">
-              <span className="text-7xl filter drop-shadow-sm">🎨</span>
+          <div className="text-center mb-6">
+            <div className="inline-block p-6 bg-[#FFD180] rounded-[2.5rem] shadow-lg mb-4">
+              <span className="text-8xl filter drop-shadow-sm">🎨</span>
             </div>
-            <h1 className="text-5xl md:text-6xl font-black text-[#1e3a8a] mb-2 tracking-tight drop-shadow-sm">
-              เกมจับคู่สี
+            <h1 className="text-6xl md:text-7xl font-black text-[#1e3a8a] mb-3 tracking-tight drop-shadow-sm">
+              จับคู่สี
             </h1>
             <p className="text-xl text-slate-700 font-bold mb-1">ฝึกความจำและการสังเกต</p>
-            <p className="text-lg text-slate-500 font-medium">จำตำแหน่งสี แล้วจับคู่ให้ถูกต้อง</p>
+            <p className="text-base text-slate-500 font-medium">จำตำแหน่งสี แล้วจับคู่ให้ถูกต้อง</p>
           </div>
 
 
           {/* ฟังคำแนะนำ and Demo Buttons */}
-          <div className="flex justify-center gap-4 w-full mb-6">
+          <div className="flex justify-center gap-4 w-full mb-8">
             <button 
               onClick={() => speak("เลือกระดับความยาก เพื่อเริ่มเล่นได้เลยครับ")}
-              className="flex items-center justify-center gap-2 font-bold px-8 h-16 rounded-full min-w-[240px] cursor-pointer hover:scale-105 shadow-lg hover:shadow-xl transition-all text-lg border-b-4 text-indigo-700 bg-white/90 hover:bg-white border-indigo-200"
+              className="flex items-center justify-center gap-2 font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 shadow-md hover:shadow-lg transition-all text-base border-2 text-indigo-700 bg-white hover:bg-indigo-50 border-indigo-200"
             >
-              <span className="text-2xl">🔊</span>
+              <span className="text-xl">🔊</span>
               <span>ฟังคำแนะนำ</span>
             </button>
             <button
               onClick={startDemo}
-              className="flex items-center justify-center gap-2 font-bold px-8 h-16 rounded-full min-w-[240px] cursor-pointer hover:scale-105 shadow-lg hover:shadow-xl transition-all text-lg border-b-4 text-yellow-900 bg-[#FDE047] hover:bg-yellow-300 border-[#EAB308]"
+              className="flex items-center justify-center gap-2 font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 shadow-md hover:shadow-lg transition-all text-base border-2 text-yellow-900 bg-[#FDE047] hover:bg-yellow-300 border-yellow-400"
             >
-              <span className="text-2xl">💡</span>
+              <span className="text-xl">💡</span>
               <span>ตัวอย่างการเล่น</span>
             </button>
           </div>
 
           {/* Level Buttons (ปรับให้เหมือนรูปเป๊ะ: พื้นขาว ขอบมน เงาฟุ้ง) */}
-          <div className="flex flex-col md:flex-row gap-8 w-full max-w-2xl justify-center items-stretch mb-10 px-4">
-            {/* ระดับธรรมดา */}
+          <div className="flex flex-col md:flex-row gap-6 w-full max-w-xl justify-center items-stretch mb-8 px-4">
+            {/* ระดับง่าย */}
             <button
               onClick={() => handleSelectLevel(1)}
-              className={`flex-1 group relative bg-white rounded-[2.5rem] p-8 transition-all duration-300 flex flex-col items-center justify-center border-4
+              className={`flex-1 group relative bg-white rounded-[2rem] p-6 transition-all duration-300 flex flex-col items-center justify-center
                 ${selectedLevel === 1 
-                  ? 'border-[#60A5FA] shadow-[0_0_20px_rgba(96,165,250,0.6)] scale-105 z-20 ring-4 ring-blue-100' 
-                  : 'border-transparent shadow-lg hover:border-blue-200 hover:-translate-y-1 hover:shadow-xl'
+                  ? 'shadow-[0_4px_20px_rgba(59,130,246,0.5)] scale-[1.02] border-4 border-blue-400' 
+                  : 'shadow-lg border-4 border-transparent hover:border-blue-200 hover:shadow-xl'
                 }`}
             >
-              <div className="w-24 h-24 bg-orange-100 rounded-full flex items-center justify-center text-6xl mb-4 shadow-inner">😊</div>
-              <h3 className={`text-3xl font-black mb-2 ${selectedLevel === 1 ? 'text-[#2563EB]' : 'text-[#1e3a8a]'}`}>ระดับธรรมดา</h3>
-              <p className="text-sm text-slate-500 font-bold">จำนวนไพ่น้อย เริ่มต้นฝึกฝน</p>
+              <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center text-5xl mb-3 shadow-sm">😊</div>
+              <h3 className={`text-2xl font-black mb-1 ${selectedLevel === 1 ? 'text-[#2563EB]' : 'text-[#1e3a8a]'}`}>ระดับง่าย</h3>
+              <p className="text-xs text-slate-500 font-semibold">จำนวนไพ่น้อย เริ่มต้นฝึกฝน</p>
             </button>
 
             {/* ระดับยาก */}
             <button
               onClick={() => handleSelectLevel(2)}
-              className={`flex-1 group relative bg-white rounded-[2.5rem] p-8 transition-all duration-300 flex flex-col items-center justify-center border-4
+              className={`flex-1 group relative bg-white rounded-[2rem] p-6 transition-all duration-300 flex flex-col items-center justify-center
                 ${selectedLevel === 2 
-                  ? 'border-[#A855F7] shadow-[0_0_20px_rgba(168,85,247,0.6)] scale-105 z-20 ring-4 ring-purple-100' 
-                  : 'border-transparent shadow-lg hover:border-purple-200 hover:-translate-y-1 hover:shadow-xl'
+                  ? 'shadow-[0_4px_20px_rgba(168,85,247,0.5)] scale-[1.02] border-4 border-purple-400' 
+                  : 'shadow-lg border-4 border-transparent hover:border-purple-200 hover:shadow-xl'
                 }`}
             >
-              <div className="w-24 h-24 bg-pink-100 rounded-full flex items-center justify-center text-6xl mb-4 shadow-inner">🤓</div>
-              <h3 className={`text-3xl font-black mb-2 ${selectedLevel === 2 ? 'text-[#7C3AED]' : 'text-[#581c87]'}`}>ระดับยาก</h3>
-              <p className="text-sm text-slate-500 font-bold">ท้าทายความจำ จำนวนไพ่เยอะขึ้น</p>
+              <div className="w-20 h-20 bg-pink-100 rounded-full flex items-center justify-center text-5xl mb-3 shadow-sm">🤓</div>
+              <h3 className={`text-2xl font-black mb-1 ${selectedLevel === 2 ? 'text-[#7C3AED]' : 'text-[#581c87]'}`}>ระดับยาก</h3>
+              <p className="text-xs text-slate-500 font-semibold">ท้าทายความจำ จำนวนไพ่เยอะขึ้น</p>
             </button>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col items-center gap-4 w-full max-w-xs px-4 relative z-20">
+          <div className="flex flex-col items-center gap-3 w-full max-w-xs px-4 relative z-20">
             {/* Start Button (Gradient Purple) */}
             <button
               onClick={handleStartGame}
               disabled={!selectedLevel}
-              className={`w-full py-4 rounded-2xl text-2xl font-black shadow-lg transition-all duration-200
+              className={`w-full py-3.5 rounded-[2rem] text-xl font-black shadow-md transition-all duration-200
                 ${selectedLevel 
-                  ? 'bg-gradient-to-r from-[#A855F7] to-[#8B5CF6] text-white hover:scale-105 hover:shadow-purple-300/50 cursor-pointer border-b-4 border-[#7E22CE]' 
-                  : 'bg-slate-300 text-slate-500 cursor-not-allowed border-b-4 border-slate-400'
+                  ? 'bg-gradient-to-r from-[#A855F7] to-[#8B5CF6] text-white hover:scale-105 hover:shadow-lg cursor-pointer' 
+                  : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                 }`}
             >
                เริ่มเล่น
@@ -489,9 +514,9 @@ export default function ColorMatchingGame() {
             {/* Back Button (Blue) */}
             <button 
               onClick={() => { cancel(); router.push('/welcome'); }}
-              className="px-8 py-3 rounded-2xl bg-[#3B82F6] text-white font-bold text-lg hover:bg-[#2563EB] transition-all shadow-md flex items-center gap-2 border-b-4 border-[#1D4ED8]"
+              className="w-full py-3.5 rounded-[2rem] bg-[#3B82F6] text-white font-black text-xl hover:bg-[#2563EB] transition-all shadow-md flex items-center justify-center gap-2"
             >
-              <span>⬅</span> กลับหน้าหลัก
+              หน้าเลือกเกม
             </button>
             </div>
           
@@ -524,7 +549,7 @@ export default function ColorMatchingGame() {
                       </linearGradient>
                     </defs>
                   </svg>
-                  <span className="text-xl font-bold text-purple-700">กลับ</span>
+                  <span className="text-xl font-bold text-purple-700">เลิกเล่น</span>
                 </span>
               </button>
             ) : (
@@ -532,7 +557,7 @@ export default function ColorMatchingGame() {
             )}
             <div className="hidden md:flex flex-col items-center">
               <span className="text-sm font-bold text-blue-300 uppercase tracking-widest">LEVEL</span>
-              <span className="text-2xl font-black text-blue-700 drop-shadow-sm">{difficulty === 1 ? 'ระดับธรรมดา' : 'ระดับยาก'}</span>
+              <span className="text-2xl font-black text-blue-700 drop-shadow-sm">{difficulty === 1 ? 'ระดับง่าย' : 'ระดับยาก'}</span>
             </div>
           </div>
         )}
@@ -810,8 +835,8 @@ export default function ColorMatchingGame() {
             <div className="flex justify-center items-center w-full">
                 <div className={`grid gap-3 md:gap-4 justify-items-center
                     ${difficulty === 1 
-                      ? 'grid-cols-4 sm:grid-cols-5 max-w-3xl' 
-                      : 'grid-cols-6 max-w-4xl'
+                      ? 'grid-cols-4 max-w-4xl' 
+                      : 'grid-cols-6 max-w-6xl'
                     }
                   `}>
                     {cards.map((card) => {
@@ -856,28 +881,28 @@ export default function ColorMatchingGame() {
         {/* Result Screen */}
         {gameCompleted && (
             <div className="flex-1 flex items-center justify-center w-full p-4 my-auto animate-fade-in-up z-20">
-                <div className="max-w-2xl w-full bg-white/95 backdrop-blur-md rounded-[3rem] shadow-2xl p-10 text-center border-[8px] border-white/50 ring-4 ring-blue-200">
-                <div className="text-9xl mb-4 animate-bounce drop-shadow-md">🎉</div>
-                <h2 className="text-6xl font-black text-blue-900 mb-4 tracking-tight">เก่งมาก!</h2>
-                <p className="text-2xl text-slate-500 mb-10 font-medium bg-slate-50 inline-block px-6 py-2 rounded-full">
+                <div className="max-w-3xl w-full bg-white/95 backdrop-blur-md rounded-[3rem] shadow-2xl p-16 text-center border-[8px] border-white/50 ring-4 ring-blue-200">
+                <div className="mb-6 animate-bounce drop-shadow-md" style={{fontSize: '8rem'}}>🎉</div>
+                <h2 className="text-8xl font-black text-blue-900 mb-6 tracking-tight">เก่งมาก!</h2>
+                <p className="text-3xl text-slate-500 mb-12 font-medium bg-slate-50 inline-block px-8 py-4 rounded-full">
                     {isDailyMode ? 'ภารกิจส่วนนี้เสร็จสิ้นแล้ว' : 'คุณจับคู่สีได้ครบทุกใบแล้ว'}
                 </p>
 
-                <div className="grid grid-cols-2 gap-6 mb-10">
-                    <div className="bg-blue-50 p-6 rounded-3xl border-2 border-blue-100">
-                        <p className="text-blue-600 font-bold text-lg mb-1 uppercase tracking-wider">เวลาที่ใช้</p>
-                        <p className="text-5xl font-black text-blue-800">{formatTime(totalTime)}</p>
+                <div className="grid grid-cols-2 gap-8 mb-12">
+                    <div className="bg-blue-50 p-10 rounded-3xl border-2 border-blue-100">
+                        <p className="text-blue-600 font-bold text-2xl mb-2 uppercase tracking-wider">เวลาที่ใช้</p>
+                        <p className="text-7xl font-black text-blue-800">{formatTime(totalTime)}</p>
                     </div>
-                    <div className="bg-green-50 p-6 rounded-3xl border-2 border-green-100">
-                        <p className="text-green-600 font-bold text-lg mb-1 uppercase tracking-wider">จำนวนครั้ง</p>
-                        <p className="text-5xl font-black text-green-800">{moves}</p>
+                    <div className="bg-green-50 p-10 rounded-3xl border-2 border-green-100">
+                        <p className="text-green-600 font-bold text-2xl mb-2 uppercase tracking-wider">จำนวนครั้ง</p>
+                        <p className="text-7xl font-black text-green-800">{moves}</p>
                     </div>
                 </div>
 
                 {!isDailyMode && difficulty === 1 && (
                     <button 
                         onClick={() => { setGameStarted(false); setDifficulty(2); setSelectedLevel(2); }} 
-                        className="w-full py-5 mb-4 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold text-xl rounded-2xl shadow-lg shadow-red-200 transition-all hover:scale-[1.02] active:scale-95 border-b-4 border-red-700 active:border-b-0 active:translate-y-0"
+                        className="w-full py-7 mb-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold text-2xl rounded-2xl shadow-lg shadow-orange-200 transition-all hover:scale-[1.02] active:scale-95 border-b-4 border-orange-700 active:border-b-0 active:translate-y-0"
                     >
                         ⚡ ระดับยาก
                     </button>
@@ -886,14 +911,24 @@ export default function ColorMatchingGame() {
                 {isDailyMode ? (
                   <button 
                     onClick={() => router.push(`/games/daily-quiz?action=next&playedStep=${dailyStep}`)} 
-                    className="w-full py-6 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-2xl font-bold rounded-2xl shadow-xl shadow-green-200 transition-transform hover:scale-[1.02] active:scale-95"
+                    className="w-full py-7 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-2xl font-bold rounded-2xl shadow-xl shadow-green-200 transition-transform hover:scale-[1.02] active:scale-95"
                   >
                     ✅ ผ่านด่าน (ไปต่อ)
                   </button>
                 ) : (
                   <div className="flex flex-col md:flex-row gap-4">
-                    <button onClick={() => { cancel(); setGameStarted(false); setSelectedLevel(null); }} className="flex-1 py-5 bg-gradient-to-r from-blue-200 to-blue-300 hover:from-blue-300 hover:to-blue-400 text-blue-900 font-bold text-xl rounded-2xl transition-all border-b-4 border-blue-400 active:border-b-0 active:translate-y-0 shadow-md">
-                    กลับเมนูหลัก
+                    <button
+                      onClick={() => {
+                        cancel();
+                        setGameCompleted(false);
+                        setGameStarted(false);
+                        setPreviewing(false);
+                        setShowDemo(false);
+                        setSelectedLevel(null);
+                      }}
+                      className="flex-1 py-7 bg-gradient-to-r from-blue-200 to-blue-300 hover:from-blue-300 hover:to-blue-400 text-blue-900 font-bold text-2xl rounded-2xl transition-all border-b-4 border-blue-400 active:border-b-0 active:translate-y-0 shadow-md"
+                    >
+                    กลับหน้าแรก
                     </button>
                   </div>
                 )}
