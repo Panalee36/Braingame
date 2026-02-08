@@ -39,7 +39,8 @@ export default function QuizPage({ params }: { params: { gameId: string } }) {
   const [selected, setSelected] = React.useState<string | null>(null);
   const [submitted, setSubmitted] = React.useState(false);
 
-  const questionData = QUESTION_BANK[gameId]?.(level);
+  // Fix: assert gameId as keyof typeof QUESTION_BANK
+  const questionData = (QUESTION_BANK as Record<string, (level: number) => { question: string; options: string[]; answer: string; }>)[gameId]?.(level);
 
   if (!questionData) {
     return <div className="p-8 text-center">ไม่พบคำถามสำหรับเกมนี้</div>;
