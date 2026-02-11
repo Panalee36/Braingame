@@ -109,25 +109,25 @@ export default function WelcomePage() {
     <div className="min-h-screen bg-[#F0F9FF] font-sans pb-12">
       
       {/* --- 1. Header --- */}
-      <header className="bg-white shadow-md py-4 px-4 md:px-8 sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-4xl">🧠</span>
+      <header className="bg-white shadow-md py-2 px-4 md:px-6 sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🧠</span>
             <div className="flex flex-col">
-                <span className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">Brain Games</span>
-                <span className="text-sm text-slate-500">เกมฝึกสมองสำหรับผู้สูงอายุ</span>
+                <span className="text-lg md:text-xl font-bold text-slate-800 tracking-tight">Brain Games</span>
+                <span className="text-xs text-slate-500">เกมฝึกสมองสำหรับผู้สูงอายุ</span>
             </div>
           </div>
 
           <Link 
             href="/profile" 
-            className={`flex items-center gap-4 px-6 py-3 md:px-8 md:py-4 rounded-full transition-all duration-200 border-2 shadow-sm hover:shadow-md w-full md:w-auto min-w-[280px] justify-center md:justify-start ${
+            className={`flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 rounded-full transition-all duration-200 border-2 shadow-sm hover:shadow-md w-full md:w-auto min-w-[220px] justify-center md:justify-start ${
               username 
                 ? 'bg-blue-50 hover:bg-blue-100 border-blue-200 hover:border-blue-400' 
                 : 'bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-400'
             }`}
           >
-             <div className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-4xl md:text-5xl border-2 border-white shadow-sm ${
+             <div className={`w-10 h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center text-2xl md:text-3xl border-2 border-white shadow-sm ${
                username
                  ? 'bg-gradient-to-br from-yellow-100 to-orange-100'
                  : 'bg-white'
@@ -135,16 +135,15 @@ export default function WelcomePage() {
                {username ? fruitEmoji : '👤'}
              </div>
             <div className="text-left">
-              <p className={`text-sm md:text-base font-medium mb-0.5 ${username ? 'text-slate-500' : 'text-slate-400'}`}>
+              <p className={`text-xs md:text-sm font-medium mb-0.5 ${username ? 'text-slate-500' : 'text-slate-400'}`}>
                 {username ? 'สวัสดีครับ,' : 'ยังไม่ได้ล็อกอิน'}
               </p>
-              <p className={`text-xl md:text-2xl font-bold truncate max-w-[180px] ${
+              <p className={`text-base md:text-lg font-bold truncate max-w-[150px] ${
                 username ? 'text-blue-700' : 'text-gray-500'
               }`}>
                 {username || 'กรุณาล็อกอิน'}
               </p>
             </div>
-            <div className={`text-2xl ml-auto pl-2 ${username ? 'text-blue-300' : 'text-gray-300'}`}>➔</div>
           </Link>
         </div>
       </header>
@@ -237,7 +236,7 @@ export default function WelcomePage() {
                         transition-all duration-150 flex items-center justify-center gap-2
                         ${game.btnColor}
                     `}>
-                        เริ่มเล่น <span>➔</span>
+                        เริ่มเล่น
                     </div>
                 </div>
               </Link>

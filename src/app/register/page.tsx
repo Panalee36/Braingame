@@ -66,10 +66,17 @@ export default function RegisterPage() {
       setPassword("");
       setAge("");
       // เก็บข้อมูลลง localStorage เพื่อให้ welcome page แสดงไอคอนโปรไฟล์ทันที
-      localStorage.setItem('profile_username', data.username || username);
-      localStorage.setItem('profile_age', data.age || age);
-      if (data.anonId) {
-        localStorage.setItem('anonId', data.anonId);
+      const user = data.user || {};
+      localStorage.setItem('profile_username', user.username || username);
+      localStorage.setItem('profile_age', user.age ? String(user.age) : age);
+      if (user.anonId) {
+        localStorage.setItem('anonId', user.anonId);
+      }
+      if (user.id) {
+        localStorage.setItem('userId', user.id);
+      }
+      if (user.createdAt) {
+        localStorage.setItem('profile_createdAt', user.createdAt);
       }
       // ไปหน้าโปรไฟล์ทันทีหลังสมัครสมาชิก
       window.location.replace('/profile');

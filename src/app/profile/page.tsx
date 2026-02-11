@@ -48,7 +48,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState({
     username: '',
     age: '',
-    joinedDate: '',
+    joinedDate: '-',
     fruitEmoji: ''
   });
 
@@ -79,21 +79,16 @@ export default function ProfilePage() {
     const storedUsername = localStorage.getItem('profile_username');
     const storedAge = localStorage.getItem('profile_age');
     
-    // ใช้วันที่สมัครจริง (profile_joinedDate) ถ้ามี ถ้าไม่มีก็สร้างใหม่และบันทึก
-    let joinedDate = localStorage.getItem('profile_joinedDate');
-    if (!joinedDate) {
-      // ถ้ายังไม่เคยบันทึก ให้ใช้วันนี้และบันทึกลง localStorage
-      const today = new Date();
-      joinedDate = today.toISOString();
-      localStorage.setItem('profile_joinedDate', joinedDate);
-    }
-    // แปลงเป็นวันที่แบบไทย
-    const joinedDateObj = new Date(joinedDate);
-    const formattedJoinedDate = joinedDateObj.toLocaleDateString('th-TH', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    const storedCreatedAt = localStorage.getItem('profile_createdAt');
+    const legacyJoinedDate = localStorage.getItem('profile_joinedDate');
+    const joinedDateSource = storedCreatedAt || legacyJoinedDate;
+    const formattedJoinedDate = joinedDateSource
+      ? new Date(joinedDateSource).toLocaleDateString('th-TH', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        })
+      : '-';
     if (storedUsername) {
       setProfile(prev => ({
         ...prev,

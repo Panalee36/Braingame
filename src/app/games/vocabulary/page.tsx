@@ -199,20 +199,28 @@ function VocabularyGameContent() {
 
   const initializeGame = () => {
     const wordCount = 20; // กำหนดจำนวนคำตายตัว (20 คำ)
-    const words = generateVocabularyWords(1, wordCount)
-    const options = generateVocabularyOptions(words, 1, 30)
-    setDisplayedWords(words)
-    setSelectionOptions(options)
-    setSelectedWords([])
-    setShowWords(true)
-    setGameStarted(true)
-    setGameCompleted(false)
-    setTotalTime(0)
-    setIsSaving(false)
-    setTimeLimit(120) // กำหนดเวลาตายตัว 2 นาที (120 วินาที)
-    setCorrectCount(null)
-    setDisplayTimer(120) // เวลาดูคำ 2 นาที (120 วินาที)
-    setShowDisplayTimer(true)
+    // สุ่มคำโดยไม่ให้ซ้ำ
+    let allWords = generateVocabularyWords(1, 100); // สมมติว่าฟังก์ชันนี้คืนคำศัพท์ทั้งหมดที่มี
+    // กรองซ้ำด้วย Set
+    const uniqueWords = Array.from(new Set(allWords.map(w => w.word))).map(word => {
+      return allWords.find(w => w.word === word);
+    }).filter((w): w is VocabularyWord => !!w);
+    // สุ่มเลือก wordCount คำ
+    const shuffled = uniqueWords.sort(() => Math.random() - 0.5);
+    const words = shuffled.slice(0, wordCount);
+    const options = generateVocabularyOptions(words, 1, 30);
+    setDisplayedWords(words);
+    setSelectionOptions(options);
+    setSelectedWords([]);
+    setShowWords(true);
+    setGameStarted(true);
+    setGameCompleted(false);
+    setTotalTime(0);
+    setIsSaving(false);
+    setTimeLimit(120); // กำหนดเวลาตายตัว 2 นาที (120 วินาที)
+    setCorrectCount(null);
+    setDisplayTimer(120); // เวลาดูคำ 2 นาที (120 วินาที)
+    setShowDisplayTimer(true);
   }
 
   // Auto Start Daily Mode
@@ -227,7 +235,9 @@ function VocabularyGameContent() {
     demoTimeoutsRef.current = [];
     setShowDemo(true)
     setDemoStep(0)
-    speak("นี่คือตัวอย่างการเล่นครับ... ช่วงแรกให้จำคำศัพท์... พอหมดเวลา ให้เลือกคำศัพท์ที่จำได้ครับ");
+    if (!soundDisabled) {
+      speak("นี่คือตัวอย่างการเล่นครับ... ช่วงแรกให้จำคำศัพท์... พอหมดเวลา ให้เลือกคำศัพท์ที่จำได้ครับ");
+    }
     const demoWords = generateVocabularyWords(1, 6)
     const demoOptions = generateVocabularyOptions(demoWords, 1)
     setDisplayedWords(demoWords)
@@ -274,6 +284,7 @@ function VocabularyGameContent() {
 
   const closeDemo = () => {
     setShowDemo(false)
+    window.speechSynthesis.cancel(); // หยุดเสียงทันทีเมื่อปิดตัวอย่าง
     demoTimeoutsRef.current.forEach(clearTimeout);
     demoTimeoutsRef.current = [];
     setDemoStep(0);

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, Suspense } from 'react'
+import React, { useState, useEffect, useRef, Suspense, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 // import { generateAnimalSounds } from '@/utils/gameUtils' (ลบออก ใช้ animalUtils แทน)
@@ -327,6 +327,16 @@ useEffect(() => {
     setSoundPlayed(true)
   }
 
+  const stopDemo = useCallback(() => {
+    setShowDemo(false);
+    setDemoStep(0);
+    setCurrentAnimal(null);
+    setOptions([]);
+    setSoundPlayed(false);
+    setSelectedAnswer(null);
+    setAnswered(false);
+  }, [])
+
   useEffect(() => {
     if (isDailyMode && !gameStarted && !gameCompleted && hasInteracted) {
       initializeGame();
@@ -343,54 +353,82 @@ useEffect(() => {
       setSelectedAnswer(null)
       setAnswered(false)
       
-      // ลำดับการแสดงตัวอย่าง
-      const demoTimeoutRef = setTimeout(() => {
-        setDemoStep(1) // แสดงอธิบาย
+      // เริ่มขั้นตอนที่ 1 ทันที
+      setTimeout(() => {
+        setDemoStep(1)
         if (!soundDisabled) speak("ตัวอย่างการเล่น... เกมนี้จะให้คุณฟังเสียงสัตว์ แล้วเลือกรูปสัตว์ที่ตรงกับเสียงครับ")
-        
-        const demoTimeout2 = setTimeout(() => {
-          setDemoStep(2) // ฟังเสียง
-          if (!soundDisabled) speak("คลิกปุ่มลำโพง เพื่อฟังเสียงสัตว์ครับ")
-          
-          // เล่นเสียงตัวอย่างอัตโนมัติ
-          const demoTimeout3 = setTimeout(() => {
-            if (animal?.soundUrl) {
-              const audio = new Audio(animal.soundUrl)
-              audio.play().catch(e => console.error("Error playing sound:", e))
-            }
-            setSoundPlayed(true)
-          }, 5000)
-          
-          const demoTimeout4 = setTimeout(() => {
-            setDemoStep(3) // เลือกรูป
-            if (!soundDisabled) speak("มองหารูปสัตว์ที่ตรงกับเสียงที่ฟังมา... เลือกรูปสัตว์ที่ถูกต้องครับ")
-            
-            const demoTimeout5 = setTimeout(() => {
-              setSelectedAnswer(animal?.name || "")
-              setAnswered(true)
-              setDemoStep(4) // ตรวจสอบ
-              if (!soundDisabled) speak("ยอดเยี่ยม... ตอบถูกแล้วครับ... ทำแบบนี้ไปเรื่อยๆ จนครบ 5 ข้อ")
-              
-              const demoTimeout6 = setTimeout(() => {
-                setDemoStep(5) // สรุป
-                if (!soundDisabled) speak("เล่นต่อไปทีละข้อ จนกว่าจะครบ 5 ข้อ... เข้าใจแล้วใช่ไหมครับ... กดเริ่มเล่นได้เลย")
-              }, 5000)
-              
-              return () => clearTimeout(demoTimeout6)
-            }, 5000)
-            
-            return () => clearTimeout(demoTimeout5)
-          }, 10000)
-          
-          return () => clearTimeout(demoTimeout4)
-        }, 5000)
-        
-        return () => clearTimeout(demoTimeout2)
-      }, 2000)
-      
-      return () => clearTimeout(demoTimeoutRef)
+      }, 500)
     }
   }, [showDemo, demoStep, soundDisabled, speak])
+
+  useEffect(() => {
+    if (!showDemo) return
+
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    if (demoStep === 1) {
+      timer = setTimeout(() => {
+        setDemoStep(2)
+      }, 3500)
+    }
+
+    if (demoStep === 3) {
+      timer = setTimeout(() => {
+        setDemoStep(4)
+      }, 3500)
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer)
+    }
+  }, [showDemo, demoStep])
+
+  // จัดการแต่ละขั้นตอนของ Demo แยกจากกัน
+  useEffect(() => {
+    if (!showDemo || !currentAnimal) return
+
+    if (demoStep === 2) {
+      // ขั้นตอน 2: เล่นเสียงอัตโนมัติ
+      const timer = setTimeout(() => {
+        if (!soundDisabled) speak("ตอนนี้กำลังเล่นเสียงสัตว์ให้ฟัง... ฟังให้ดีนะครับ")
+        
+        setTimeout(() => {
+          if (currentAnimal?.soundUrl) {
+            const audio = new Audio(currentAnimal.soundUrl)
+            audio.play().catch(e => console.error("Error playing sound:", e))
+          }
+          setSoundPlayed(true)
+          
+          // ไปขั้นตอนถัดไปหลังเล่นเสียงเสร็จ
+          setTimeout(() => {
+            setDemoStep(3)
+            if (!soundDisabled) speak("ได้ยินเสียงอะไรบ้างครับ... ตอนนี้ให้มองหารูปสัตว์ที่ตรงกับเสียงที่ได้ยิน")
+          }, 3000)
+        }, 2000)
+      }, 1000)
+      
+      return () => clearTimeout(timer)
+    }
+
+    if (demoStep === 4) {
+      // ขั้นตอน 4: เลือกคำตอบอัตโนมัติ
+      const timer = setTimeout(() => {
+        if (!soundDisabled) speak("ผมจะกดเลือกคำตอบที่ถูกต้องให้ดูนะครับ... เป็นสัตว์ตัวนี้เลย")
+        
+        setTimeout(() => {
+          setSelectedAnswer(currentAnimal?.name || "")
+          setAnswered(true)
+          setDemoStep(5)
+          
+          setTimeout(() => {
+            if (!soundDisabled) speak("เยี่ยมมาก... ตอบถูกแล้ว... เมื่อตอบถูกจะเห็นกรอบสีเขียว... ถ้าตอบผิดจะเป็นสีแดง และจะแสดงคำตอบที่ถูกต้องด้วยสีเขียว")
+          }, 1000)
+        }, 2000)
+      }, 1000)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [demoStep, showDemo, currentAnimal, soundDisabled, speak])
 
   // คะแนนรวม = จำนวนที่ตอบถูก
   const successRate = correctAnswers
@@ -494,16 +532,135 @@ useEffect(() => {
         {/* --- Main Content Area --- */}
         <div className="flex-1 flex items-center justify-center w-full my-0 animate-fade-in z-20">
           {/* --- Demo --- */}
-          {showDemo && demoStep > 0 && currentAnimal && options.length > 0 ? (
-            <div className="w-full max-w-3xl card text-center bg-white border-none shadow-2xl p-10 rounded-[3rem] relative overflow-hidden ring-8 ring-yellow-200">
-              <h2 className="text-4xl font-black text-slate-800 mb-8 flex items-center justify-center gap-3">
-                <span className="text-yellow-500">📖</span> ตัวอย่างการเล่น
-              </h2>
-              <p className="text-xl text-primary-600 mb-4 leading-relaxed">🎮 เกมนี้จะให้คุณฟังเสียงสัตว์ แล้วเลือกรูปสัตว์ที่ตรงกับเสียง<br/>ให้ลองฟังและเลือกรูปเพื่อท่องจำเสียงและรูปสัตว์ต่างๆ</p>
-              <div className="flex gap-4 flex-col md:flex-row mb-8">
-                <button onClick={() => { setShowDemo(false); setDemoStep(0); setCurrentAnimal(null); setOptions([]); setSoundPlayed(false); setSelectedAnswer(null); setAnswered(false); initializeGame(); }} className="btn-primary flex-1">เริ่มเล่น</button>
-                <button onClick={() => setShowDemo(false)} className="btn-secondary flex-1">ปิด</button>
+          {showDemo ? (
+            <div className="w-full max-w-3xl relative">
+              {/* คำอธิบายขั้นตอน */}
+              <div className="mb-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-6 rounded-3xl shadow-xl border-4 border-blue-300 relative overflow-hidden">
+                <button
+                  onClick={stopDemo}
+                  className="absolute top-4 right-4 z-20 bg-red-500 hover:bg-red-600 text-white font-black rounded-full px-5 py-2 shadow-lg ring-2 ring-white/80 transition-transform hover:scale-105"
+                >
+                  ✖ ปิดตัวอย่าง
+                </button>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 pointer-events-none"></div>
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12 pointer-events-none"></div>
+                <div className="relative z-10">
+                  <h2 className="text-3xl font-black mb-3 flex items-center gap-3">
+                    <span className="text-5xl">📖</span> 
+                    <span>ตัวอย่างการเล่น</span>
+                  </h2>
+                  <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4 border-2 border-white/30">
+                    {demoStep === 1 && (
+                      <p className="text-xl font-bold leading-relaxed">
+                        🎯 ขั้นตอนที่ 1: ทำความเข้าใจกติกา<br/>
+                        <span className="text-lg font-normal">เกมนี้จะให้คุณฟังเสียงสัตว์ แล้วเลือกรูปสัตว์ที่ตรงกับเสียงนั้น</span>
+                      </p>
+                    )}
+                    {demoStep === 2 && (
+                      <p className="text-xl font-bold leading-relaxed">
+                        🔊 ขั้นตอนที่ 2: ฟังเสียงสัตว์<br/>
+                        <span className="text-lg font-normal">ระบบจะเล่นเสียงสัตว์ให้ฟังอัตโนมัติ และฟังให้ดีว่าเป็นเสียงอะไร</span>
+                      </p>
+                    )}
+                    {demoStep === 3 && (
+                      <p className="text-xl font-bold leading-relaxed">
+                        🤔 ขั้นตอนที่ 3: มองหารูปสัตว์<br/>
+                        <span className="text-lg font-normal">ดูรูปสัตว์ทั้ง 4 ตัว แล้วเลือกตัวที่ตรงกับเสียงที่ได้ยิน</span>
+                      </p>
+                    )}
+                    {demoStep === 4 && (
+                      <p className="text-xl font-bold leading-relaxed">
+                        👆 ขั้นตอนที่ 4: เลือกคำตอบ<br/>
+                        <span className="text-lg font-normal">กดเลือกรูปสัตว์ที่คิดว่าถูกต้อง</span>
+                      </p>
+                    )}
+                    {demoStep === 5 && (
+                      <p className="text-xl font-bold leading-relaxed">
+                        ✅ ขั้นตอนที่ 5: ดูผลลัพธ์<br/>
+                        <span className="text-lg font-normal">ถ้าตอบถูกจะเห็นกรอบสีเขียว 🟢 ถ้าตอบผิดจะเห็นกรอบสีแดง 🔴<br/>
+                        จากนั้นเล่นต่อไปข้อถัดไปจนครบ 5 ข้อ</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
+
+              {/* พื้นที่เกม */}
+              {currentAnimal && options.length > 0 ? (
+                <div className="w-full">
+                  {/* ปุ่มเสียง */}
+                  <div className={`card text-center mb-5 bg-white/90 rounded-2xl shadow-lg p-6 transition-all duration-300 ${demoStep === 2 ? 'ring-8 ring-yellow-400 scale-105 animate-pulse' : ''}`}>
+                    <p className="text-xl text-green-700 mb-4 font-bold">
+                      {demoStep === 2 ? '👇 ระบบจะเล่นเสียงให้ฟัง 👇' : 'ฟังเสียง และเลือกสัตว์'}
+                    </p>
+                    <button
+                      disabled={demoStep !== 2}
+                      className={`w-full text-2xl mb-3 rounded-2xl font-bold py-5 px-8 shadow-xl border-2 border-[#ffe066] bg-gradient-to-r from-[#ffe259] to-[#ffa751] text-white transition-all ${demoStep === 2 ? 'hover:scale-105 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
+                      style={{
+                        textShadow: '0 2px 8px rgba(255, 193, 7, 0.25)',
+                        boxShadow: '0 8px 24px 0 rgba(255, 193, 7, 0.18), 0 2px 8px 0 rgba(255, 193, 7, 0.10)'
+                      }}
+                    >
+                      🔊 เล่นเสียง (อัตโนมัติ)
+                    </button>
+                    {soundPlayed && (
+                      <p className="text-base text-green-700 font-semibold animate-fade-in">
+                        ✅ ได้ยินเสียงแล้ว! ตอนนี้เลือกรูปสัตว์ที่ตรงกับเสียง
+                      </p>
+                    )}
+                  </div>
+
+                  {/* ตัวเลือกรูปภาพ */}
+                  <div className={`transition-all duration-300 ${(demoStep === 3 || demoStep === 4) ? 'ring-8 ring-green-400 rounded-3xl p-2' : ''}`}>
+                    {(demoStep === 3 || demoStep === 4) && (
+                      <p className="text-center text-2xl font-black text-green-700 mb-3 animate-bounce">
+                        👇 เลือกรูปสัตว์ที่ตรงกับเสียง 👇
+                      </p>
+                    )}
+                    <div className="grid grid-cols-2 gap-3">
+                      {options.map((option) => {
+                        let extraClass = '';
+                        let isCorrectAnswer = option.name === currentAnimal?.name;
+                        
+                        if (answered) {
+                          if (isCorrectAnswer) {
+                            extraClass = 'bg-green-200 border-green-500 ring-8 ring-green-400 scale-105';
+                          } else if (selectedAnswer === option.name) {
+                            extraClass = 'bg-red-200 border-red-500 ring-8 ring-red-400 scale-105';
+                          }
+                        }
+                        
+                        // ไฮไลท์คำตอบที่ถูกต้องในขั้นตอนที่ 4 (ก่อนกด)
+                        if (demoStep === 4 && !answered && isCorrectAnswer) {
+                          extraClass = 'ring-8 ring-yellow-400 animate-pulse';
+                        }
+                        
+                        return (
+                          <button
+                            key={option.name}
+                            disabled={true}
+                            className={`py-6 px-2 rounded-2xl font-bold transition-all text-green-700 shadow-xl border-2 bg-white flex flex-col items-center justify-center ${extraClass}`}
+                          >
+                            <img 
+                              src={option.imageUrl}
+                              alt={option.name}
+                              style={{ width: '180px', height: '180px', objectFit: 'cover', borderRadius: '1.2rem', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}
+                            />
+                            <span className="text-xl font-bold mt-2">{option.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* ไม่มีปุ่มควบคุมในโหมดตัวอย่างเล่นอัตโนมัติ */}
+                </div>
+              ) : (
+                <div className="text-center py-20">
+                  <div className="text-6xl mb-4 animate-spin">⏳</div>
+                  <p className="text-2xl font-bold text-slate-600">กำลังเตรียมตัวอย่าง...</p>
+                </div>
+              )}
             </div>
           ) : !gameStarted ? (
             <div className="w-full max-w-xl flex flex-col items-center animate-fade-in my-auto pb-16 relative">
@@ -526,7 +683,15 @@ useEffect(() => {
                     <span>ฟังคำแนะนำ</span>
                   </button>
                   <button
-                    onClick={() => { setDemoStep(0); setCurrentAnimal(null); setOptions([]); setSoundPlayed(false); setSelectedAnswer(null); setAnswered(false); setShowDemo(true); }}
+                    onClick={() => {
+                      setShowDemo(true);
+                      setDemoStep(0);
+                      setCurrentAnimal(null);
+                      setOptions([]);
+                      setSoundPlayed(false);
+                      setSelectedAnswer(null);
+                      setAnswered(false);
+                    }}
                     className="flex items-center justify-center gap-2 font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 shadow-md hover:shadow-lg transition-all text-base border-2 text-yellow-900 bg-[#FDE047] hover:bg-yellow-300 border-yellow-400"
                   >
                     <span className="text-xl">💡</span>

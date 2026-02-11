@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { generateColorCards } from '@/utils/gameUtils'
-import { useTTS } from '@/hooks/useTTS' // ✅ 1. เรียกใช้ Hook เสียง
+import { useTTS } from '@/hooks/useTTS' 
 
 // ==========================================
 // ☁️ ธีมก้อนเมฆ "แบบดราฟต์จากรูปต้นฉบับ" (Vector Traced Theme)
@@ -12,30 +12,20 @@ import { useTTS } from '@/hooks/useTTS' // ✅ 1. เรียกใช้ Hook 
 const ExactCartoonTheme = () => {
   return (
     <div className="absolute inset-0 z-0 overflow-hidden bg-[#fbc2eb]">
-      {/* 1. ท้องฟ้าไล่สี (Gradient Sky) - ไล่จากม่วงเข้ม > ชมพู > ส้ม > เหลืองอ่อน (Sunset) */}
       <div className="absolute inset-0 bg-gradient-to-b from-[#e0e7ff] via-[#bae6fd] via-70% to-[#f0f9ff]"></div>
 
-      {/* 2. เมฆลอย (Floating Clouds) - วาดทรงรีๆ มนๆ แบบการ์ตูน */}
-      {/* ซ้ายบน */}
       <svg className="absolute top-[10%] left-[5%] w-40 h-24 text-white/30 animate-float-slow" viewBox="0 0 200 120" fill="currentColor">
         <path d="M20,80 Q40,40 70,50 T130,50 T180,80 Q190,100 160,110 H40 Q10,100 20,80 Z" />
       </svg>
-      {/* ขวาบน */}
       <svg className="absolute top-[15%] right-[8%] w-32 h-20 text-white/30 animate-float-delayed" viewBox="0 0 200 120" fill="currentColor">
         <path d="M10,70 Q30,30 80,40 T150,50 T190,80 Q195,100 150,105 H50 Q5,90 10,70 Z" />
       </svg>
 
-      {/* 3. ☁️ พื้นเมฆด้านล่าง (Cloud Floor) - ดราฟต์เส้นให้โค้งเว้าเหมือนรูปเป๊ะๆ */}
       <div className="absolute bottom-0 w-full h-auto">
-         
-         {/* ชั้นหลัง (Layer 2) - สีจางกว่า สูงกว่านิดหน่อย */}
          <svg className="absolute bottom-0 w-full h-[280px] md:h-[400px] text-white/40 transform scale-110 origin-bottom" viewBox="0 0 1440 320" preserveAspectRatio="none" fill="currentColor">
             <path d="M0,192 C150,120 300,150 400,180 C550,220 650,120 800,140 C950,160 1050,220 1200,200 C1350,180 1400,100 1440,120 V320 H0 Z" />
          </svg>
-
-         {/* ชั้นหน้า (Layer 1) - สีขาวทึบ ขอบมนใหญ่ๆ แบบในรูป */}
          <svg className="relative w-full h-[220px] md:h-[320px] text-white drop-shadow-md" viewBox="0 0 1440 320" preserveAspectRatio="none" fill="currentColor">
-            {/* เส้น Path นี้ดัดให้มีความ "อ้วนกลม" เหมือนปุยเมฆในรูปตัวอย่าง */}
             <path d="M0,256 C120,200 240,160 360,192 C480,224 550,280 680,260 C800,240 880,160 1000,170 C1150,180 1250,240 1360,220 C1400,210 1420,200 1440,220 V320 H0 Z" />
          </svg>
       </div>
@@ -49,32 +39,35 @@ interface ColorCard {
 
 function ColorMatchingGameContent() {
     const wrongSoundRef = useRef<HTMLAudioElement | null>(null)
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const levelParam = searchParams.get('level');
-  const isDailyMode = searchParams.get('mode') === 'daily';
-  const dailyStep = searchParams.get('dailyStep'); 
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const levelParam = searchParams.get('level');
+    const isDailyMode = searchParams.get('mode') === 'daily';
+    const dailyStep = searchParams.get('dailyStep'); 
 
-  // ✅ 2. แทรก Hook เสียงตรงนี้ (ไม่กระทบ Logic เกม)
-  const { speak, cancel } = useTTS();
-  const [hasInteracted, setHasInteracted] = useState(false);
-  // ✅ แทรกโค้ดนี้ลงไปบรรทัดถัดมาได้เลยครับ
-  useEffect(() => {
-    if (isDailyMode) {
+    const { speak, cancel } = useTTS();
+    const [hasInteracted, setHasInteracted] = useState(false);
+    const [soundDisabled, setSoundDisabled] = useState(false);
+    
+    useEffect(() => {
+      if (isDailyMode) {
         setHasInteracted(true);
-    }
-  }, [isDailyMode]);
-  const hasSpokenWelcome = useRef(false);
-  const [soundDisabled, setSoundDisabled] = useState(false);
+        const soundParam = searchParams.get('sound');
+        setSoundDisabled(soundParam === 'off');
+      }
+    }, [isDailyMode, searchParams]);
+    
+    const hasSpokenWelcome = useRef(false);
+    const [isSaving, setIsSaving] = useState(false);
 
-  // ✅ เพิ่ม State สำหรับกันการบันทึกซ้ำ
-  const [isSaving, setIsSaving] = useState(false);
+    const [isNarratingPreview, setIsNarratingPreview] = useState(false);
+    const [isNarratingPlay, setIsNarratingPlay] = useState(false);
 
   const [cards, setCards] = useState<ColorCard[]>([])
   const [flippedCards, setFlippedCards] = useState<string[]>([])
   const [matchedPairs, setMatchedPairs] = useState(0)
   const [difficulty, setDifficulty] = useState(1)
-  const getPairCount = () => difficulty === 2 ? 15 : 6;
+  const getPairCount = () => difficulty === 2 ? 12 : 6;
   const [gameStarted, setGameStarted] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
   const [previewing, setPreviewing] = useState(false)
@@ -87,8 +80,8 @@ function ColorMatchingGameContent() {
   
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
   const matchSoundRef = useRef<HTMLAudioElement | null>(null)
-  const applauseSoundRef = useRef<HTMLAudioElement | null>(null)
 
+  // โหลดเสียงเอฟเฟกต์ (จะทำงานเสมอแม้ปิดเสียงบรรยาย)
   useEffect(() => {
     const audio = new Audio('/sounds/Soundeffect/Tingsound.pm3')
     audio.preload = 'auto'
@@ -109,18 +102,9 @@ function ColorMatchingGameContent() {
     }
   }, [])
 
-  useEffect(() => {
-    const applauseAudio = new Audio('/sounds/Soundeffect/Applause.pm3')
-    applauseAudio.load()
-    applauseSoundRef.current = applauseAudio
-    return () => {
-      applauseAudio.pause()
-      applauseSoundRef.current = null
-    }
-  }, [])
 
   // -------------------------------------------------------------
-  // 🔊 3. ระบบนักพากย์ (Narrator Logic) - ทำงานเงียบๆ
+  // 🔊 ระบบนักพากย์ (Narrator Logic)
   // -------------------------------------------------------------
 
   // 3.1 เสียงต้อนรับ
@@ -136,15 +120,24 @@ function ColorMatchingGameContent() {
   // 3.2 เสียงตอนเริ่มจำ (Preview Phase)
   useEffect(() => {
     if (gameStarted && previewing && previewTimer === 10 && !soundDisabled) {
+        setIsNarratingPreview(true);
         speak("จำตำแหน่งของสีเหล่านี้ให้ดีนะครับ... มีเวลาจำ 10 วินาที... เริ่มจำได้เลยครับ");
+        const t = setTimeout(() => {
+            setIsNarratingPreview(false);
+        }, 6000);
+        return () => clearTimeout(t);
     }
   }, [gameStarted, previewing, previewTimer, speak, soundDisabled]);
 
   // 3.3 เสียงตอนหมดเวลาจำ (Start Playing)
   useEffect(() => {
     if (gameStarted && !previewing && !gameCompleted && totalTime === 0 && !soundDisabled) {
-        // พูดเมื่อ Preview จบและเวลาเล่นเริ่มนับ
+        setIsNarratingPlay(true);
         speak("หมดเวลาจำแล้วครับ... จับคู่สีที่เหมือนกันได้เลยครับ");
+        const t = setTimeout(() => {
+            setIsNarratingPlay(false);
+        }, 4500);
+        return () => clearTimeout(t);
     }
   }, [gameStarted, previewing, gameCompleted, totalTime, speak, soundDisabled]);
 
@@ -155,39 +148,28 @@ function ColorMatchingGameContent() {
     }
   }, [gameCompleted, speak, soundDisabled]);
 
-  // 3.5 เสียงปรบมือตอนจบเกม
-  useEffect(() => {
-    if (gameCompleted && !soundDisabled) {
-      setTimeout(() => {
-        if (applauseSoundRef.current) {
-          applauseSoundRef.current.currentTime = 0;
-          applauseSoundRef.current.play().catch(() => {});
-        }
-      }, 300);
-    }
-  }, [gameCompleted, soundDisabled]);
-
   // -------------------------------------------------------------
 
   const handleSelectLevel = (level: number) => {
     setSelectedLevel(level);
-    // เพิ่มเสียงพูดตอนกดเลือก
     if (!soundDisabled) speak(level === 1 ? "ระดับง่ายครับ" : "ระดับยากครับ");
   };
 
   const handleStartGame = () => {
     if (selectedLevel) {
-      if (!soundDisabled) speak("เริ่มเกมครับ"); // เพิ่มเสียงพูดตอนกดเริ่ม
+      if (!soundDisabled) speak("เริ่มเกมครับ");
       startGame(selectedLevel);
     }
   };
 
   const startGame = (level: number) => {
     cancel(); // หยุดเสียงเก่า
-    setIsSaving(false); // ✅ Reset สถานะการบันทึก
+    setIsSaving(false); 
+    setIsNarratingPreview(false);
+    setIsNarratingPlay(false);
+
     const lvl = Math.max(1, Math.min(2, level))
     setDifficulty(lvl)
-    // ส่ง difficulty (1=ธรรมดา, 2=ยาก) ให้ generateColorCards เพื่อให้ logic ใน gameUtils ทำงานถูกต้อง
     const newCards = generateColorCards(lvl).map((c) => ({ ...c, isFlipped: true, isMatched: false }))
     setCards(newCards)
     setFlippedCards([])
@@ -206,9 +188,10 @@ function ColorMatchingGameContent() {
     }
   }, [isDailyMode, levelParam, gameStarted, gameCompleted]);
 
+  // ⏱️ ระบบนับเวลาตอนจำไพ่
   useEffect(() => {
-    if (!previewing || previewTimer <= 0) {
-      if (previewing && previewTimer <= 0) {
+    if (!previewing || previewTimer <= 0 || isNarratingPreview) {
+      if (previewing && previewTimer <= 0 && !isNarratingPreview) {
         setCards((prev) => prev.map((c) => ({ ...c, isFlipped: false })))
         setPreviewing(false)
       }
@@ -216,15 +199,16 @@ function ColorMatchingGameContent() {
     }
     const timer = setInterval(() => { setPreviewTimer((prev) => prev - 1) }, 1000)
     return () => clearInterval(timer)
-  }, [previewing, previewTimer])
+  }, [previewing, previewTimer, isNarratingPreview])
 
+  // ⏱️ ระบบนับเวลาตอนเล่น
   useEffect(() => {
-    if (!gameStarted || gameCompleted || previewing) return
+    if (!gameStarted || gameCompleted || previewing || isNarratingPlay) return
     const timer = setInterval(() => { setTotalTime((prev) => prev + 1) }, 1000)
     return () => clearInterval(timer)
-  }, [gameStarted, gameCompleted, previewing])
+  }, [gameStarted, gameCompleted, previewing, isNarratingPlay])
 
-  // ✅ เพิ่ม useEffect สำหรับบันทึกคะแนนเมื่อจบเกม (ไม่บันทึกถ้าเป็น daily mode)
+  // บันทึกคะแนน
   useEffect(() => {
     if (gameCompleted && !isSaving && !isDailyMode) {
       setIsSaving(true);
@@ -236,7 +220,7 @@ function ColorMatchingGameContent() {
           body: JSON.stringify({
             userId: userId,
             gameType: 'color-matching',
-            score: matchedPairs // ใช้จำนวนคู่ที่จับได้เป็นคะแนน
+            score: matchedPairs 
           })
         })
         .then(res => res.json())
@@ -265,21 +249,20 @@ function ColorMatchingGameContent() {
         setCards((prev) => prev.map((c) => (c.id === firstId || c.id === secondId ? { ...c, isMatched: true } : c)))
         setMatchedPairs((m) => m + 1)
         setFlippedCards([])
-        // speak("ถูกต้องครับ"); // (ตัวเลือกเสริม: ถ้าอยากให้พูดตอนถูก)
       } else {
+        // เล่นเสียงผิด (ทำงานเสมอ)
+        if (wrongSoundRef.current) {
+          wrongSoundRef.current.currentTime = 0;
+          wrongSoundRef.current.play().catch(() => {});
+        }
         setTimeout(() => {
           setFlippedCards([])
-          // Play wrong sound
-          if (wrongSoundRef.current) {
-            wrongSoundRef.current.currentTime = 0;
-            wrongSoundRef.current.play().catch(() => {});
-          }
         }, 1000)
       }
     }
   }
 
-  // เล่นเสียงเมื่อจับคู่ได้
+  // เล่นเสียงเมื่อจับคู่ได้ (ทำงานเสมอ)
   useEffect(() => {
     if (matchedPairs > 0 && matchSoundRef.current) {
       setTimeout(() => {
@@ -294,20 +277,16 @@ function ColorMatchingGameContent() {
     }
   }, [matchedPairs])
 
+  // เช็คจบเกม
   useEffect(() => {
     if (!gameStarted) return
     const totalPairs = Math.floor(cards.length / 2)
     if (matchedPairs > 0 && matchedPairs === totalPairs) {
-      // Play applause sound immediately
-      if (applauseSoundRef.current && !soundDisabled) {
-        applauseSoundRef.current.currentTime = 0;
-        applauseSoundRef.current.play().catch(() => {});
-      }
       setTimeout(() => {
         setGameCompleted(true);
       }, 800);
     }
-  }, [matchedPairs, cards, gameStarted, gameCompleted, soundDisabled])
+  }, [matchedPairs, cards.length, gameStarted])
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60); const s = seconds % 60;
@@ -318,7 +297,6 @@ function ColorMatchingGameContent() {
     setShowDemo(true)
     setDemoStep(0)
     
-    // สร้างไพ่ตัวอย่าง (4 ใบ, 2 คู่)
     const demoCards: ColorCard[] = [
       { id: 'demo-1', color: '#FF6B6B', colorName: 'แดง', isFlipped: true, isMatched: false },
       { id: 'demo-2', color: '#4ECDC4', colorName: 'เขียวขาว', isFlipped: true, isMatched: false },
@@ -334,19 +312,18 @@ function ColorMatchingGameContent() {
     setMoves(0)
     setTotalTime(0)
     
-    // ลำดับการแสดงตัวอย่าง (ช้าเหมาะสมสำหรับผู้สูงอายุ)
     demoTimeoutRef.current = setTimeout(() => {
-      setDemoStep(1) // แสดงไพ่ทั้งหมด
+      setDemoStep(1)
       if (!soundDisabled) speak("ตัวอย่างการเล่น... มี 4 ใบ ประกอบด้วย 2 คู่ครับ... สีแดง 2 ใบ สีเขียวขาว 2 ใบ")
       
       demoTimeoutRef.current = setTimeout(() => {
         setDemoStep(2)
-        setFlippedCards(['demo-1']) // เปิดไพ่แรก
+        setFlippedCards(['demo-1']) 
         if (!soundDisabled) speak("คลิกที่ไพ่เพื่อเปิด... ไพ่แรกคือสีแดงครับ")
         
         demoTimeoutRef.current = setTimeout(() => {
           setDemoStep(3)
-          setFlippedCards(['demo-1', 'demo-3']) // เปิดไพ่ที่มีสีเดียวกัน
+          setFlippedCards(['demo-1', 'demo-3']) 
           if (!soundDisabled) speak("เปิดไพ่ที่สองครับ... โอ๊ะ เป็นสีแดงเหมือนกัน... มันจับคู่ถูกแล้ว")
           
           demoTimeoutRef.current = setTimeout(() => {
@@ -383,7 +360,6 @@ function ColorMatchingGameContent() {
   }
   const closeDemo = () => { setShowDemo(false); if (demoTimeoutRef.current) clearTimeout(demoTimeoutRef.current); }
 
-  // ✅ 4. หน้าจอปลดล็อกเสียง (จำเป็นต้องมีเพื่อให้เสียงออกบน iPad/iPhone)
   if (!hasInteracted) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#fbc2eb] p-4 relative overflow-hidden">
@@ -426,7 +402,6 @@ function ColorMatchingGameContent() {
 
   return (
     <div className="min-h-screen font-sans flex flex-col items-center relative overflow-hidden p-4 md:p-6">
-      {/* ☁️ พื้นหลังท้องฟ้าและเมฆ (Vector Traced) */}
       <ExactCartoonTheme />
 
       <div className="relative z-10 w-full flex flex-col items-center flex-1">
@@ -435,7 +410,6 @@ function ColorMatchingGameContent() {
       {!gameStarted && !showDemo && !isDailyMode && (
         <div className="w-full max-w-5xl flex flex-col items-center animate-fade-in my-auto pb-40"> 
           
-          {/* Logo & Title */}
           <div className="text-center mb-6">
             <div className="inline-block p-6 bg-[#FFD180] rounded-[2.5rem] shadow-lg mb-4">
               <span className="text-8xl filter drop-shadow-sm">🎨</span>
@@ -447,8 +421,6 @@ function ColorMatchingGameContent() {
             <p className="text-base text-slate-500 font-medium">จำตำแหน่งสี แล้วจับคู่ให้ถูกต้อง</p>
           </div>
 
-
-          {/* ฟังคำแนะนำ and Demo Buttons */}
           <div className="flex justify-center gap-4 w-full mb-8">
             <button 
               onClick={() => speak("เลือกระดับความยาก เพื่อเริ่มเล่นได้เลยครับ")}
@@ -466,9 +438,7 @@ function ColorMatchingGameContent() {
             </button>
           </div>
 
-          {/* Level Buttons (ปรับให้เหมือนรูปเป๊ะ: พื้นขาว ขอบมน เงาฟุ้ง) */}
           <div className="flex flex-col md:flex-row gap-6 w-full max-w-xl justify-center items-stretch mb-8 px-4">
-            {/* ระดับง่าย */}
             <button
               onClick={() => handleSelectLevel(1)}
               className={`flex-1 group relative bg-white rounded-[2rem] p-6 transition-all duration-300 flex flex-col items-center justify-center
@@ -482,7 +452,6 @@ function ColorMatchingGameContent() {
               <p className="text-xs text-slate-500 font-semibold">จำนวนไพ่น้อย เริ่มต้นฝึกฝน</p>
             </button>
 
-            {/* ระดับยาก */}
             <button
               onClick={() => handleSelectLevel(2)}
               className={`flex-1 group relative bg-white rounded-[2rem] p-6 transition-all duration-300 flex flex-col items-center justify-center
@@ -497,9 +466,7 @@ function ColorMatchingGameContent() {
             </button>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex flex-col items-center gap-3 w-full max-w-xs px-4 relative z-20">
-            {/* Start Button (Gradient Purple) */}
             <button
               onClick={handleStartGame}
               disabled={!selectedLevel}
@@ -512,17 +479,13 @@ function ColorMatchingGameContent() {
                เริ่มเล่น
             </button>
             
-
-            {/* Back Button (Blue) */}
             <button 
               onClick={() => { cancel(); router.push('/welcome'); }}
               className="w-full py-3.5 rounded-[2rem] bg-[#3B82F6] text-white font-black text-xl hover:bg-[#2563EB] transition-all shadow-md flex items-center justify-center gap-2"
             >
               หน้าเลือกเกม
             </button>
-            </div>
-          
-
+          </div>
         </div>
       )}
 
@@ -623,7 +586,6 @@ function ColorMatchingGameContent() {
                             <p className="text-lg text-slate-700">มีไพ่ 4 ใบ ประกอบด้วย 2 คู่ (สีแดง 2 ใบ, สีเขียวขาว 2 ใบ)</p>
                           </div>
                           
-                          {/* ไพ่แสดงตัวอย่าง */}
                           <div className="flex justify-center gap-4 bg-slate-50 p-8 rounded-3xl border-2 border-blue-200">
                             {cards.slice(0, 4).map((card, idx) => (
                               <div key={card.id} className="flex flex-col items-center">
@@ -644,7 +606,6 @@ function ColorMatchingGameContent() {
                             <p className="text-lg text-slate-700">คลิกที่ไพ่เพื่อเปิด... พบสีแดง</p>
                           </div>
                           
-                          {/* ไพ่แสดงตัวอย่าง */}
                           <div className="flex justify-center gap-4 bg-slate-50 p-8 rounded-3xl border-2 border-green-200">
                             {cards.slice(0, 4).map((card, idx) => (
                               <div key={card.id} className="flex flex-col items-center">
@@ -671,7 +632,6 @@ function ColorMatchingGameContent() {
                             <p className="text-lg text-slate-700">หาไพ่ที่มีสีเดียวกับไพ่แรก...</p>
                           </div>
                           
-                          {/* ไพ่แสดงตัวอย่าง */}
                           <div className="flex justify-center gap-4 bg-slate-50 p-8 rounded-3xl border-2 border-yellow-200">
                             {cards.slice(0, 4).map((card, idx) => (
                               <div key={card.id} className="flex flex-col items-center">
@@ -712,7 +672,6 @@ function ColorMatchingGameContent() {
                             <p className="text-lg text-slate-700">ต่อไปจับคู่อีกใบ เปิดไพ่อีกใบ...</p>
                           </div>
                           
-                          {/* ไพ่แสดงตัวอย่าง */}
                           <div className="flex justify-center gap-4 bg-slate-50 p-8 rounded-3xl border-2 border-purple-200">
                             {cards.slice(0, 4).map((card, idx) => (
                               <div key={card.id} className="flex flex-col items-center">
@@ -739,7 +698,6 @@ function ColorMatchingGameContent() {
                             <p className="text-lg text-slate-700">เปิดไพ่สุดท้าย... สีเขียวขาว!</p>
                           </div>
                           
-                          {/* ไพ่แสดงตัวอย่าง */}
                           <div className="flex justify-center gap-4 bg-slate-50 p-8 rounded-3xl border-2 border-cyan-200">
                             {cards.slice(0, 4).map((card, idx) => (
                               <div key={card.id} className="flex flex-col items-center">
@@ -793,7 +751,6 @@ function ColorMatchingGameContent() {
                       )}
                     </div>
 
-                    {/* ปุ่มควบคุม */}
                     <div className="flex flex-col md:flex-row gap-4 mt-8">
                       <button 
                         onClick={closeDemo} 
@@ -880,62 +837,65 @@ function ColorMatchingGameContent() {
             </div>
         )}
 
-        {/* Result Screen */}
+        {/* Result Screen: Only shown when gameCompleted is true */}
         {gameCompleted && (
-            <div className="flex-1 flex items-center justify-center w-full p-4 my-auto animate-fade-in-up z-20">
-                <div className="max-w-3xl w-full bg-white/95 backdrop-blur-md rounded-[3rem] shadow-2xl p-16 text-center border-[8px] border-white/50 ring-4 ring-blue-200">
-                <div className="mb-6 animate-bounce drop-shadow-md" style={{fontSize: '8rem'}}>🎉</div>
-                <h2 className="text-8xl font-black text-blue-900 mb-6 tracking-tight">เก่งมาก!</h2>
-                <p className="text-3xl text-slate-500 mb-12 font-medium bg-slate-50 inline-block px-8 py-4 rounded-full">
-                    {isDailyMode ? 'ภารกิจส่วนนี้เสร็จสิ้นแล้ว' : 'คุณจับคู่สีได้ครบทุกใบแล้ว'}
-                </p>
+          <div className="flex-1 flex items-center justify-center w-full p-4 my-auto animate-fade-in-up z-20">
+            <div className="max-w-3xl w-full bg-white/95 backdrop-blur-md rounded-[3rem] shadow-2xl p-16 text-center border-[8px] border-white/50 ring-4 ring-blue-200">
+              <div className="mb-6 animate-bounce drop-shadow-md" style={{fontSize: '8rem'}}>🎉</div>
+              <h2 className="text-8xl font-black text-blue-900 mb-6 tracking-tight">เก่งมาก!</h2>
+              <p className="text-3xl text-slate-500 mb-12 font-medium bg-slate-50 inline-block px-8 py-4 rounded-full">
+                {isDailyMode ? 'ภารกิจส่วนนี้เสร็จสิ้นแล้ว' : 'คุณจับคู่สีได้ครบทุกใบแล้ว'}
+              </p>
 
-                <div className="grid grid-cols-2 gap-8 mb-12">
-                    <div className="bg-blue-50 p-10 rounded-3xl border-2 border-blue-100">
-                        <p className="text-blue-600 font-bold text-2xl mb-2 uppercase tracking-wider">เวลาที่ใช้</p>
-                        <p className="text-7xl font-black text-blue-800">{formatTime(totalTime)}</p>
-                    </div>
-                    <div className="bg-green-50 p-10 rounded-3xl border-2 border-green-100">
-                        <p className="text-green-600 font-bold text-2xl mb-2 uppercase tracking-wider">จำนวนครั้ง</p>
-                        <p className="text-7xl font-black text-green-800">{moves}</p>
-                    </div>
+              <div className="grid grid-cols-2 gap-8 mb-12">
+                <div className="bg-blue-50 p-10 rounded-3xl border-2 border-blue-100">
+                  <p className="text-blue-600 font-bold text-2xl mb-2 uppercase tracking-wider">เวลาที่ใช้</p>
+                  <p className="text-7xl font-black text-blue-800">{formatTime(totalTime)}</p>
                 </div>
+                <div className="bg-green-50 p-10 rounded-3xl border-2 border-green-100">
+                  <p className="text-green-600 font-bold text-2xl mb-2 uppercase tracking-wider">จำนวนครั้ง</p>
+                  <p className="text-7xl font-black text-green-800">{moves}</p>
+                </div>
+              </div>
 
-                {!isDailyMode && difficulty === 1 && (
-                    <button 
-                        onClick={() => { setGameStarted(false); setDifficulty(2); setSelectedLevel(2); }} 
-                        className="w-full py-7 mb-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold text-2xl rounded-2xl shadow-lg shadow-orange-200 transition-all hover:scale-[1.02] active:scale-95 border-b-4 border-orange-700 active:border-b-0 active:translate-y-0"
-                    >
-                        ⚡ ระดับยาก
-                    </button>
-                )}
-                
-                {isDailyMode ? (
-                  <button 
-                    onClick={() => router.push(`/games/daily-quiz?action=next&playedStep=${dailyStep}`)} 
-                    className="w-full py-7 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-2xl font-bold rounded-2xl shadow-xl shadow-green-200 transition-transform hover:scale-[1.02] active:scale-95"
+              {!isDailyMode && difficulty === 1 && (
+                <button 
+                  onClick={() => { 
+                    if (!soundDisabled) speak("เริ่มเกมระดับยากครับ");
+                    startGame(2); 
+                  }} 
+                  className="w-full py-7 mb-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold text-2xl rounded-2xl shadow-lg shadow-orange-200 transition-all hover:scale-[1.02] active:scale-95 border-b-4 border-orange-700 active:border-b-0 active:translate-y-0"
+                >
+                  ⚡ ระดับยาก
+                </button>
+              )}
+              
+              {isDailyMode ? (
+                <button 
+                  onClick={() => router.push(`/games/daily-quiz?action=next&playedStep=${dailyStep}`)} 
+                  className="w-full py-7 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-2xl font-bold rounded-2xl shadow-xl shadow-green-200 transition-transform hover:scale-[1.02] active:scale-95"
+                >
+                  ✅ ผ่านด่าน (ไปต่อ)
+                </button>
+              ) : (
+                <div className="flex flex-col md:flex-row gap-4">
+                  <button
+                    onClick={() => {
+                      cancel();
+                      setGameCompleted(false);
+                      setGameStarted(false);
+                      setPreviewing(false);
+                      setShowDemo(false);
+                      setSelectedLevel(null);
+                    }}
+                    className="flex-1 py-7 bg-gradient-to-r from-blue-200 to-blue-300 hover:from-blue-300 hover:to-blue-400 text-blue-900 font-bold text-2xl rounded-2xl transition-all border-b-4 border-blue-400 active:border-b-0 active:translate-y-0 shadow-md"
                   >
-                    ✅ ผ่านด่าน (ไปต่อ)
+                  กลับหน้าแรก
                   </button>
-                ) : (
-                  <div className="flex flex-col md:flex-row gap-4">
-                    <button
-                      onClick={() => {
-                        cancel();
-                        setGameCompleted(false);
-                        setGameStarted(false);
-                        setPreviewing(false);
-                        setShowDemo(false);
-                        setSelectedLevel(null);
-                      }}
-                      className="flex-1 py-7 bg-gradient-to-r from-blue-200 to-blue-300 hover:from-blue-300 hover:to-blue-400 text-blue-900 font-bold text-2xl rounded-2xl transition-all border-b-4 border-blue-400 active:border-b-0 active:translate-y-0 shadow-md"
-                    >
-                    กลับหน้าแรก
-                    </button>
-                  </div>
-                )}
                 </div>
+              )}
             </div>
+          </div>
         )}
         </>
       )}

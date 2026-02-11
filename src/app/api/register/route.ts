@@ -32,14 +32,24 @@ export async function POST(req: Request) {
 
     const hashed = await bcrypt.hash(password, 10);
 
-    await users.insertOne({
+    const createdAt = new Date();
+    const insertResult = await users.insertOne({
       username,
       password: hashed,
       age: Number(age),
-      createdAt: new Date(),
+      createdAt,
     });
 
-    return NextResponse.json({ message: "สมัครสมาชิกสำเร็จ!" });
+    return NextResponse.json({
+      message: "สมัครสมาชิกสำเร็จ!",
+      user: {
+        id: insertResult.insertedId.toHexString(),
+        username,
+        age: Number(age),
+        createdAt,
+        anonId: `anon_${insertResult.insertedId.toHexString()}`,
+      },
+    });
   } catch (error: any) {
     // ตรวจสอบว่า error มี message หรือไม่
     const errMsg = error?.message || "เกิดข้อผิดพลาด";

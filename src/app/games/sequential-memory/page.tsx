@@ -39,7 +39,6 @@ interface SequentialImageItem {
   order: number
 }
 
-
 function SequentialMemoryGameContent() {
     // Card sound effect
     const cardSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -63,6 +62,10 @@ function SequentialMemoryGameContent() {
   const { speak, cancel } = useTTS();
   const [hasInteracted, setHasInteracted] = useState(false); 
   const [soundDisabled, setSoundDisabled] = useState(false);
+
+  // ✅ State สำหรับเช็คว่ากำลังอธิบายกติกาอยู่หรือไม่
+  const [isNarratingPreview, setIsNarratingPreview] = useState(false);
+  const [isNarratingPlay, setIsNarratingPlay] = useState(false);
 
   // ✅ 2. แก้ไข useEffect นี้ให้รับค่า sound
   useEffect(() => {
@@ -106,7 +109,6 @@ function SequentialMemoryGameContent() {
   // ✅ 3. เพิ่ม Logic นักพากย์ (Narrator) แบบซ่อนตัวทำงานเงียบๆ
   // -------------------------------------------------------------
 
-
   // พูดต้อนรับ
   useEffect(() => {
     if (hasInteracted && !hasSpokenWelcome.current && !gameStarted && !isDailyMode && !soundDisabled) {
@@ -117,17 +119,27 @@ function SequentialMemoryGameContent() {
     }
   }, [hasInteracted, gameStarted, isDailyMode, speak, soundDisabled]);
 
-  // พูดเมื่อเริ่มจำภาพ (Phase 1)
+  // พูดเมื่อเริ่มจำภาพ (Phase 1) - มีการรอให้พูดจบก่อนเวลาเดิน
   useEffect(() => {
     if (gameStarted && showDisplayTimer && displayTimer === 15 && !soundDisabled) {
+        setIsNarratingPreview(true);
         speak("จำลำดับของภาพเหล่านี้ให้ดีนะครับ... เริ่มจำได้เลยครับ");
+        const t = setTimeout(() => {
+            setIsNarratingPreview(false);
+        }, 4500); // หน่วงเวลาประมาณ 4.5 วิรอพูดจบ
+        return () => clearTimeout(t);
     }
   }, [gameStarted, showDisplayTimer, displayTimer, speak, soundDisabled]);
 
-  // พูดเมื่อเริ่มตอบ (Phase 2)
+  // พูดเมื่อเริ่มตอบ (Phase 2) - มีการรอให้พูดจบก่อนเวลาเดิน
   useEffect(() => {
     if (gameStarted && !showDisplayTimer && !showImages && !gameCompleted && timeElapsed === 0 && !soundDisabled) {
+        setIsNarratingPlay(true);
         speak("หมดเวลาจำแล้วครับ... ให้เรียงรูปภาพด้านล่าง... ตามลำดับที่จำได้เมื่อกี้เลยนะครับ");
+        const t = setTimeout(() => {
+            setIsNarratingPlay(false);
+        }, 6000); // หน่วงเวลาประมาณ 6 วิรอพูดจบ
+        return () => clearTimeout(t);
     }
   }, [gameStarted, showDisplayTimer, showImages, gameCompleted, timeElapsed, speak, soundDisabled]);
 
@@ -242,9 +254,10 @@ function SequentialMemoryGameContent() {
     }
   }, [isDailyMode, levelFromQuery]);
 
+  // ⏱️ นับเวลาตอนจำภาพ (เพิ่มเงื่อนไขไม่ให้เวลาเดินถ้ายังอธิบายไม่จบ)
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
-    if (showDisplayTimer) {
+    if (showDisplayTimer && !isNarratingPreview) {
       timer = setInterval(() => {
         setDisplayTimer(prev => {
           if (prev <= 1) {
@@ -259,17 +272,18 @@ function SequentialMemoryGameContent() {
       }, 1000);
     }
     return () => { if (timer) clearInterval(timer); };
-  }, [showDisplayTimer, images]);
+  }, [showDisplayTimer, images, isNarratingPreview]);
 
+  // ⏱️ นับเวลาตอนเล่นเกม (เพิ่มเงื่อนไขไม่ให้เวลาเดินถ้ายังอธิบายไม่จบ)
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
-    if (!showDisplayTimer && gameStarted && !gameCompleted && !showImages) {
+    if (!showDisplayTimer && gameStarted && !gameCompleted && !showImages && !isNarratingPlay) {
       timer = setInterval(() => {
         setTimeElapsed(prev => prev + 1);
       }, 1000);
     }
     return () => { if (timer) clearInterval(timer); };
-  }, [showDisplayTimer, gameStarted, gameCompleted, showImages]);
+  }, [showDisplayTimer, gameStarted, gameCompleted, showImages, isNarratingPlay]);
 
   // ✅ เพิ่ม useEffect สำหรับบันทึกคะแนนเมื่อจบเกม (ไม่บันทึกถ้าเป็น daily mode)
   useEffect(() => {
@@ -305,6 +319,9 @@ function SequentialMemoryGameContent() {
   const initializeGame = (levelOverride?: number) => {
     cancel(); // หยุดเสียงเก่าก่อนเริ่มใหม่
     setIsSaving(false); // ✅ Reset สถานะการบันทึก
+    setIsNarratingPreview(false); // ✅ Reset สถานะการอธิบาย
+    setIsNarratingPlay(false);
+
     const levelToUse = levelOverride || difficulty;
     setDifficulty(levelToUse);
     const imageCount = levelToUse === 2 ? 9 : 6;
@@ -481,92 +498,55 @@ function SequentialMemoryGameContent() {
                 กำลังเตรียมเกม...
             </div>
 
-            {/* เฉลยและตรวจคำตอบ */}
-            <div className="w-full max-w-2xl mx-auto mt-8 mb-4">
-              <h3 className="text-2xl font-bold text-blue-800 mb-4">ตรวจคำตอบของคุณ</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* เฉลยลำดับที่ถูกต้อง */}
-                <div>
-                  <div className="font-bold text-green-700 mb-2">ลำดับที่ถูกต้อง</div>
-                  <div className="grid grid-cols-3 gap-3">
-                    {images.map((img, idx) => (
-                      <div key={img.id} className="flex flex-col items-center justify-center bg-green-50 border-2 border-green-300 rounded-2xl p-2 shadow">
-                        {img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
-                          <img src={img.imageUrl} alt={img.label} className="w-16 h-16 object-contain mb-1" />
-                        ) : (
-                          <span className="text-3xl font-bold text-green-900 mb-1">{img.label}</span>
-                        )}
-                        <span className="text-lg font-bold text-green-800">{idx+1}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {/* คำตอบของคุณ */}
-                <div>
-                  <div className="font-bold text-blue-700 mb-2">คำตอบของคุณ</div>
-                  <div className="grid grid-cols-3 gap-3">
-                    {selectedOrder.map((img, idx) => {
-                      const isCorrect = img && img.id === images[idx].id;
-                      return (
-                        <div key={idx} className={`flex flex-col items-center justify-center rounded-2xl p-2 shadow border-2 ${isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-400 animate-pulse'}`}>
-                          {img ? (
-                            img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
-                              <img src={img.imageUrl} alt={img.label} className="w-16 h-16 object-contain mb-1" />
-                            ) : (
-                              <span className="text-3xl font-bold text-blue-900 mb-1">{img.label}</span>
-                            )
-                          ) : (
-                            <span className="text-3xl font-bold text-gray-400 mb-1">-</span>
-                          )}
-                          <span className={`text-lg font-bold ${isCorrect ? 'text-green-800' : 'text-red-700'}`}>{idx+1}</span>
-                          {!isCorrect && <span className="text-xs text-red-500 font-bold mt-1">ผิด</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
+            {/* เฉลยและตรวจคำตอบ (อันแรก ลบออกได้ถ้าซ้ำ แต่ผมแก้ขนาดให้เป๊ะตามที่คุณต้องการ) */}
+            <div className="w-full max-w-2xl mx-auto mt-8 mb-4 hidden">
+              <h3 className="text-2xl font-bold text-blue-800 mb-4 text-center">ตรวจคำตอบของคุณ</h3>
             </div>
 
-            {/* เฉลยและตรวจคำตอบ */}
-            <div className="w-full max-w-2xl mx-auto mt-8 mb-4">
-              <h3 className="text-2xl font-bold text-blue-800 mb-4">ตรวจคำตอบของคุณ</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* เฉลยและตรวจคำตอบ (ใช้งานจริง) */}
+            <div className="w-full max-w-3xl mx-auto mt-8 mb-4">
+              <h3 className="text-2xl font-bold text-blue-800 mb-4 text-center">ตรวจคำตอบของคุณ</h3>
+              <div className="relative flex flex-col md:flex-row gap-0 items-stretch bg-white rounded-3xl shadow border border-blue-100 overflow-hidden">
                 {/* เฉลยลำดับที่ถูกต้อง */}
-                <div>
-                  <div className="font-bold text-green-700 mb-2">ลำดับที่ถูกต้อง</div>
-                  <div className="grid grid-cols-3 gap-3">
+                <div className="flex-1 p-4 md:p-6 flex flex-col items-center">
+                  <div className="font-bold text-green-700 mb-4 text-center text-lg">✅ ลำดับที่ถูกต้อง</div>
+                  <div className="grid grid-cols-3 gap-3 place-items-center">
                     {images.map((img, idx) => (
-                      <div key={img.id} className="flex flex-col items-center justify-center bg-green-50 border-2 border-green-300 rounded-2xl p-2 shadow">
+                      <div key={img.id} className="w-[80px] h-[100px] md:w-[90px] md:h-[110px] flex flex-col items-center justify-center border-4 border-green-400 rounded-xl p-2 bg-green-50 shadow-sm">
                         {img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
-                          <img src={img.imageUrl} alt={img.label} className="w-16 h-16 object-contain mb-1" />
+                          <img src={img.imageUrl} alt={img.label} className="w-12 h-12 md:w-14 md:h-14 object-contain mb-1" />
                         ) : (
-                          <span className="text-3xl font-bold text-green-900 mb-1">{img.label}</span>
+                          <span className="text-3xl mb-1">{img.label}</span>
                         )}
-                        <span className="text-lg font-bold text-green-800">{idx+1}</span>
+                        <span className="text-sm text-green-700 font-bold mt-1 leading-none">{idx+1}</span>
                       </div>
                     ))}
                   </div>
                 </div>
+
+                {/* เส้นแบ่งแนวตั้ง/แนวนอน */}
+                <div className="w-full h-px md:w-px md:h-auto bg-gray-300 mx-0 my-4 md:my-6 md:mx-0"></div>
+
                 {/* คำตอบของคุณ */}
-                <div>
-                  <div className="font-bold text-blue-700 mb-2">คำตอบของคุณ</div>
-                  <div className="grid grid-cols-3 gap-3">
+                <div className="flex-1 p-4 md:p-6 flex flex-col items-center">
+                  <div className="font-bold text-blue-700 mb-4 text-center text-lg">👤 คำตอบของคุณ</div>
+                  <div className="grid grid-cols-3 gap-3 place-items-center">
                     {selectedOrder.map((img, idx) => {
-                      const isCorrect = img && img.id === images[idx].id;
+                      const isCorrect = img && img.id === images[idx]?.id;
                       return (
-                        <div key={idx} className={`flex flex-col items-center justify-center rounded-2xl p-2 shadow border-2 ${isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-400 animate-pulse'}`}>
-                          {img ? (
-                            img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
-                              <img src={img.imageUrl} alt={img.label} className="w-16 h-16 object-contain mb-1" />
+                        <div key={idx} className={`w-[80px] h-[100px] md:w-[90px] md:h-[110px] flex flex-col items-center justify-center border-4 rounded-xl p-2 shadow-sm ${isCorrect ? 'bg-green-50 border-green-400' : img ? 'bg-red-50 border-red-400' : 'bg-gray-50 border-gray-200'}`}>
+                            {img ? (
+                              img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
+                                <img src={img.imageUrl} alt={img.label} className="w-12 h-12 md:w-14 md:h-14 object-contain mb-1" />
+                              ) : (
+                                <span className="text-3xl font-bold text-blue-900 mb-1">{img.label}</span>
+                              )
                             ) : (
-                              <span className="text-3xl font-bold text-blue-900 mb-1">{img.label}</span>
-                            )
-                          ) : (
-                            <span className="text-3xl font-bold text-gray-400 mb-1">-</span>
-                          )}
-                          <span className={`text-lg font-bold ${isCorrect ? 'text-green-800' : 'text-red-700'}`}>{idx+1}</span>
-                          {!isCorrect && <span className="text-xs text-red-500 font-bold mt-1">ผิด</span>}
+                              <span className="text-gray-400 text-3xl mb-1">-</span>
+                            )}
+                          <span className={`flex items-center gap-1 text-sm font-bold mt-1 leading-none ${isCorrect ? 'text-green-700' : img ? 'text-red-600' : 'text-gray-400'}`}>
+                            {img ? (isCorrect ? idx+1 : <><span className="text-red-500 text-xs">ผิด</span></>) : '-'}
+                          </span>
                         </div>
                       );
                     })}
@@ -833,44 +813,50 @@ function SequentialMemoryGameContent() {
             </div>
 
             {/* เฉลยและตรวจคำตอบ */}
-            <div className="w-full max-w-2xl mx-auto mt-8 mb-4">
-              <h3 className="text-2xl font-bold text-blue-800 mb-4">ตรวจคำตอบของคุณ</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="w-full max-w-3xl mx-auto mt-8 mb-4">
+              <h3 className="text-2xl font-bold text-blue-800 mb-4 text-center">ตรวจคำตอบของคุณ</h3>
+              <div className="relative flex flex-col md:flex-row gap-0 items-stretch bg-white rounded-3xl shadow-sm border border-blue-100 overflow-hidden">
                 {/* เฉลยลำดับที่ถูกต้อง */}
-                <div>
-                  <div className="font-bold text-green-700 mb-2">ลำดับที่ถูกต้อง</div>
-                  <div className="grid grid-cols-3 gap-3">
+                <div className="flex-1 p-4 md:p-6 flex flex-col items-center">
+                  <div className="font-bold text-green-700 mb-4 text-center text-lg">✅ ลำดับที่ถูกต้อง</div>
+                  <div className="grid grid-cols-3 gap-3 place-items-center">
                     {images.map((img, idx) => (
-                      <div key={img.id} className="flex flex-col items-center justify-center bg-green-50 border-2 border-green-300 rounded-2xl p-2 shadow">
+                      <div key={img.id} className="w-[80px] h-[100px] md:w-[90px] md:h-[110px] flex flex-col items-center justify-center bg-green-50 border-2 border-green-300 rounded-xl p-2 shadow-sm">
                         {img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
-                          <img src={img.imageUrl} alt={img.label} className="w-16 h-16 object-contain mb-1" />
+                          <img src={img.imageUrl} alt={img.label} className="w-12 h-12 md:w-14 md:h-14 object-contain mb-1" />
                         ) : (
                           <span className="text-3xl font-bold text-green-900 mb-1">{img.label}</span>
                         )}
-                        <span className="text-lg font-bold text-green-800">{idx+1}</span>
+                        <span className="text-sm font-bold text-green-800 leading-none mt-1">{idx+1}</span>
                       </div>
                     ))}
                   </div>
                 </div>
+                
+                {/* เส้นแบ่งแนวตั้ง/แนวนอน */}
+                <div className="w-full h-px md:w-px md:h-auto bg-gray-300 mx-0 my-4 md:my-6 md:mx-0"></div>
+
                 {/* คำตอบของคุณ */}
-                <div>
-                  <div className="font-bold text-blue-700 mb-2">คำตอบของคุณ</div>
-                  <div className="grid grid-cols-3 gap-3">
+                <div className="flex-1 p-4 md:p-6 flex flex-col items-center">
+                  <div className="font-bold text-blue-700 mb-4 text-center text-lg">👤 คำตอบของคุณ</div>
+                  <div className="grid grid-cols-3 gap-3 place-items-center">
                     {selectedOrder.map((img, idx) => {
                       const isCorrect = img && img.id === images[idx].id;
                       return (
-                        <div key={idx} className={`flex flex-col items-center justify-center rounded-2xl p-2 shadow border-2 ${isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-400 animate-pulse'}`}>
+                        <div key={idx} className={`w-[80px] h-[100px] md:w-[90px] md:h-[110px] flex flex-col items-center justify-center rounded-xl p-2 shadow-sm border-2 ${isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-400'}`}>
                           {img ? (
                             img.imageUrl && img.imageUrl.startsWith("/memory-images/") ? (
-                              <img src={img.imageUrl} alt={img.label} className="w-16 h-16 object-contain mb-1" />
+                              <img src={img.imageUrl} alt={img.label} className="w-12 h-12 md:w-14 md:h-14 object-contain mb-1" />
                             ) : (
                               <span className="text-3xl font-bold text-blue-900 mb-1">{img.label}</span>
                             )
                           ) : (
                             <span className="text-3xl font-bold text-gray-400 mb-1">-</span>
                           )}
-                          <span className={`text-lg font-bold ${isCorrect ? 'text-green-800' : 'text-red-700'}`}>{idx+1}</span>
-                          {!isCorrect && <span className="text-xs text-red-500 font-bold mt-1">ผิด</span>}
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className={`text-sm font-bold leading-none ${isCorrect ? 'text-green-800' : 'text-red-700'}`}>{idx+1}</span>
+                            {!isCorrect && <span className="text-xs text-red-500 font-bold leading-none">ผิด</span>}
+                          </div>
                         </div>
                       );
                     })}
@@ -878,8 +864,9 @@ function SequentialMemoryGameContent() {
                 </div>
               </div>
             </div>
+
             {isDailyMode ? (
-              <div className="flex justify-center mb-4">
+              <div className="flex justify-center mb-4 mt-6">
                   <button 
                   onClick={() => router.push(`/games/daily-quiz?action=next&playedStep=${dailyStep}`)} 
                   className="w-full max-w-md py-4 bg-green-500 hover:bg-green-600 text-white text-2xl font-bold rounded-xl shadow-lg transition-transform hover:scale-105"
@@ -888,10 +875,14 @@ function SequentialMemoryGameContent() {
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col md:flex-row gap-4 justify-center mb-2">
+              <div className="flex flex-col md:flex-row gap-4 justify-center mb-2 mt-6">
                 {difficulty === 1 && (
                   <button 
-                    onClick={() => { setDifficulty(2); setTimeout(() => initializeGame(2), 100); }} 
+                    onClick={() => { 
+                      if (!soundDisabled) speak("เริ่มเกมระดับยากครับ");
+                      setDifficulty(2); 
+                      setTimeout(() => initializeGame(2), 100); 
+                    }} 
                     className="px-10 py-5 bg-green-500 text-white text-2xl font-bold rounded-2xl hover:bg-green-600 shadow-lg transition-all"
                   >
                     ถัดไป (ยาก)
@@ -938,7 +929,6 @@ function SequentialMemoryGameContent() {
               <>
                 {!showImages && (
                   <div className="w-full flex flex-col items-center gap-3 mb-4">
-                    {/* กล่องข้อความ '👇 เลือกรูปภาพด้านล่างตามลำดับที่จำได้' ถูกลบตามคำขอ */}
                     {/* ปุ่มฟังซ้ำช่วงตอบ */}
                     <button
                       onClick={() => speak(' ให้เรียงรูปภาพด้านล่าง... ตามลำดับที่จำได้เมื่อกี้เลยนะครับ')}
@@ -1015,8 +1005,6 @@ function SequentialMemoryGameContent() {
                 <div className="w-full max-w-6xl mx-auto mb-8 flex flex-col gap-8 items-center justify-center">
                   {/* 1. สถิติ (ซ้าย) */}
                   <div className="w-full lg:w-[250px] flex flex-col gap-4">
-                    {/* กล่องสถิติ 'เวลา' และ 'เลือกแล้ว' ถูกลบตามคำขอ */}
-                    {/* ปุ่มยกเลิกถูกลบตามคำขอ */}
                   </div>
 
                   {/* 2. ช่องตอบ (กลาง) */}
@@ -1076,7 +1064,6 @@ function SequentialMemoryGameContent() {
                           </button>
                         ))}
                     </div>
-                    {/* ปรับความสูงของกรอบให้ auto ไม่ min-h, ไม่ max-h, ไม่ h-full */}
                   </div>
                 </div>
 
@@ -1089,7 +1076,6 @@ function SequentialMemoryGameContent() {
                           : 'bg-gray-300 text-gray-500 border-gray-400 cursor-not-allowed'}
                     `}
                     onClick={handleCheckAnswer}
-                    // disabled={selectedOrder.filter(Boolean).length !== images.length} // ปิด disabled เพื่อให้กดแล้วมีเสียงเตือน
                   >
                     ✅ ส่งคำตอบ
                   </button>

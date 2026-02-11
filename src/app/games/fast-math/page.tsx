@@ -412,7 +412,7 @@ function FastMathGameContent() {
     <div className="min-h-screen font-sans flex flex-col items-center relative overflow-hidden p-4 md:p-6">
       <ExactCartoonTheme />
       <div className="relative z-10 w-full flex flex-col items-center flex-1">
-        {(gameStarted || (isDailyMode && gameCompleted)) && !showDemo && (
+        {gameStarted && !gameCompleted && !showDemo && (
           <div className="w-full max-w-5xl bg-gradient-to-r from-[#f8fbff] to-[#eef3ff] rounded-[2.5rem] shadow-xl px-10 py-5 mb-7 flex items-center justify-between sticky top-4 z-50 border border-[#e0e7ef] min-h-[80px]">
             {!isDailyMode ? (
               <button
