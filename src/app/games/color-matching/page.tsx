@@ -83,7 +83,7 @@ function ColorMatchingGameContent() {
 
   // โหลดเสียงเอฟเฟกต์ (จะทำงานเสมอแม้ปิดเสียงบรรยาย)
   useEffect(() => {
-    const audio = new Audio('/sounds/Soundeffect/Tingsound.pm3')
+    const audio = new Audio('/sounds/sound-effects/tingsound.mp3')
     audio.preload = 'auto'
     matchSoundRef.current = audio
     return () => {
@@ -93,7 +93,7 @@ function ColorMatchingGameContent() {
   }, [])
 
   useEffect(() => {
-    const wrongAudio = new Audio('/sounds/Soundeffect/Wrong sound.pm3')
+    const wrongAudio = new Audio('/sounds/sound-effects/wrong-sound.mp3')
     wrongAudio.preload = 'auto'
     wrongSoundRef.current = wrongAudio
     return () => {

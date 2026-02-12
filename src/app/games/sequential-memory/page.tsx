@@ -43,7 +43,7 @@ function SequentialMemoryGameContent() {
     // Card sound effect
     const cardSoundRef = useRef<HTMLAudioElement | null>(null);
     useEffect(() => {
-      const audio = new Audio('/sounds/Soundeffect/card.pm3');
+      const audio = new Audio('/sounds/sound-effects/card.mp3');
       audio.preload = 'auto';
       cardSoundRef.current = audio;
       return () => {

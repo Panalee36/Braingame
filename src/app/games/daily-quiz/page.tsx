@@ -105,7 +105,7 @@ function DailyQuizPageContent() {
 
   const successSoundRef = useRef<HTMLAudioElement | null>(null);
   useEffect(() => {
-    const audio = new Audio('/sounds/Soundeffect/Applause.pm3');
+    const audio = new Audio('/sounds/sound-effects/applause.mp3');
     audio.preload = 'auto';
     successSoundRef.current = audio;
     return () => {

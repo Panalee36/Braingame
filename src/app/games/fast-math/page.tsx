@@ -103,7 +103,7 @@ function FastMathGameContent() {
   // ... (useEffect เสียงปรบมือ คงเดิม) ...
   useEffect(() => {
     const applause = new Audio()
-    applause.src = '/sounds/Soundeffect/Applause.mp3'
+    applause.src = '/sounds/sound-effects/applause.mp3'
     applause.preload = 'auto'
     applause.volume = 1.0
     applause.addEventListener('canplaythrough', () => console.log('🎵 เสียงปรบมือโหลดสำเร็จ'))
