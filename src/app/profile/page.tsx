@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { requestNotificationPermission } from '@/utils/requestNotification' // ✅ 1. เพิ่ม import
 
 // Interface สำหรับข้อมูลประวัติการเล่น
 interface GameStat {
@@ -177,6 +178,17 @@ export default function ProfilePage() {
     setGameHistoryDetail([]);
   };
 
+  // ✅ 2. ฟังก์ชันกดปุ่มแจ้งเตือน
+  const handleEnableNotifications = () => {
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      requestNotificationPermission(userId);
+      alert("ระบบกำลังขออนุญาตเปิดการแจ้งเตือน... กรุณากด 'อนุญาต' (Allow) ที่มุมจอ");
+    } else {
+      alert("ไม่พบข้อมูลผู้ใช้");
+    }
+  };
+
   const handleLogout = () => {
     // เคลียร์ข้อมูลทั้งหมด
     localStorage.removeItem('userId'); 
@@ -339,8 +351,6 @@ export default function ProfilePage() {
                   </span>
                 </div>
             </div>
-
-            {/* ...ปุ่มออกจากระบบด้านบนถูกลบออก... */}
         </div>
 
         {/* Decorative Elements */}
@@ -348,7 +358,17 @@ export default function ProfilePage() {
         <div className="absolute bottom-10 right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl animate-pulse delay-75"></div>
         <div className="absolute top-1/2 left-1/4 w-16 h-16 bg-yellow-300/20 rounded-full blur-2xl"></div>
         <div className="absolute top-1/3 right-1/4 w-20 h-20 bg-pink-300/20 rounded-full blur-2xl"></div>
-        
+
+        {/* Floating Notification Button (Top Right) */}
+        <button 
+          onClick={handleEnableNotifications}
+          className="absolute top-8 right-8 z-20 bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-500 hover:to-emerald-600 text-white font-extrabold text-lg px-7 py-3 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 border-2 border-white/50 flex items-center gap-3 group hover:scale-105 active:scale-95"
+          style={{ minWidth: 'auto' }}
+        >
+          <span className="text-2xl animate-bounce">🔔</span>
+          <span>รับแจ้งเตือน</span>
+        </button>
+
         {/* Pattern Overlay */}
         <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '30px 30px'}}></div>
       </div>
@@ -403,8 +423,8 @@ export default function ProfilePage() {
             ))}
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-row justify-center gap-6 mt-12 w-full">
+        {/* Action Buttons: Removed แจ้งเตือน button from here */}
+        <div className="flex flex-row flex-wrap justify-center gap-6 mt-12 w-full">
           <Link 
             href="/welcome" 
             className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-extrabold text-xl px-12 py-5 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 border-2 border-white/50 flex items-center gap-4 group hover:scale-105 active:scale-95"
@@ -412,6 +432,7 @@ export default function ProfilePage() {
             <span className="text-3xl transform group-hover:rotate-12 transition-transform">🏠</span> 
             <span>กลับหน้าหลัก</span>
           </Link>
+
           <button 
             onClick={handleLogout}
             className="bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white font-extrabold text-xl px-10 py-5 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 border-2 border-white/50 flex items-center gap-4 group hover:scale-105 active:scale-95"
