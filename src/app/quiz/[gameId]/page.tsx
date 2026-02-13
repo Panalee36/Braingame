@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 //test
 // Dummy question generators for each game (replace with real logic)
 const QUESTION_BANK = {
@@ -31,11 +31,12 @@ const QUESTION_BANK = {
   }),
 };
 
-export default function QuizPage({ params }: { params: { gameId: string } }) {
+export default function QuizPage() {
   const router = useRouter();
+  const params = useParams<{ gameId: string }>();
   const searchParams = useSearchParams();
   const level = Number(searchParams.get("level")) || 1;
-  const gameId = params.gameId;
+  const gameId = params?.gameId ?? "";
   const [selected, setSelected] = React.useState<string | null>(null);
   const [submitted, setSubmitted] = React.useState(false);
 

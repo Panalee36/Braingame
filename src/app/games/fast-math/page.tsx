@@ -201,7 +201,7 @@ function FastMathGameContent() {
     setAnswered(false);
     setTimeRemaining(120); 
     setTotalTime(0);
-  }, [difficulty]);
+  }, [difficulty, cancel]);
 
   useEffect(() => {
     if (isDailyMode && !gameStarted && !gameCompleted) {

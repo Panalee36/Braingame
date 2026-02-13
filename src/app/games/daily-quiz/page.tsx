@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, Suspense, useRef } from 'react'
+import React, { useState, useEffect, Suspense, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import confetti from 'canvas-confetti'
@@ -74,6 +74,8 @@ const generateDailyGames = (seed: string) => {
   const shuffled = seededShuffle(ALL_GAMES, seed);
   return shuffled.slice(0, 3).map((game) => ({ ...game, level: 1 }));
 };
+
+const getStorageKey = (base: string, uid: string | null) => (uid ? `${base}_${uid}` : base);
 
 function DailyQuizPageContent() {
   const router = useRouter();
@@ -158,9 +160,15 @@ function DailyQuizPageContent() {
     };
   }, [step, hasInteracted, isLoaded, games, speak, soundDisabled, searchParams]);
 
-  const getStorageKey = (base: string, uid: string | null) => uid ? `${base}_${uid}` : base;
-
-  const saveData = async (newDate: string, newGames: any[], newStep: number, newHistory: string[], newStreak: number, newCycleStart: string, currentUserId: string | null) => {
+  const saveData = useCallback(async (
+    newDate: string,
+    newGames: any[],
+    newStep: number,
+    newHistory: string[],
+    newStreak: number,
+    newCycleStart: string,
+    currentUserId: string | null
+  ) => {
     const STORAGE_KEY = getStorageKey('daily_quiz_progress_v2', currentUserId);
     const HISTORY_KEY = getStorageKey('daily_quiz_completion_history', currentUserId);
     const CYCLE_KEY = getStorageKey('daily_quiz_cycle_start_date', currentUserId);
@@ -175,7 +183,6 @@ function DailyQuizPageContent() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    userId: currentUserId,
                     date: newDate,
                     games: newGames,
                     currentStep: newStep,
@@ -186,7 +193,7 @@ function DailyQuizPageContent() {
             });
         } catch (err) { console.error("Sync Error", err); }
     }
-  };
+  }, []);
 
     useEffect(() => {
         const today = new Date();
@@ -208,7 +215,7 @@ function DailyQuizPageContent() {
             let dbData = null;
             if (storedUserId) {
                 try {
-                    const res = await fetch(`/api/game/daily?userId=${storedUserId}`);
+                    const res = await fetch(`/api/game/daily`);
                     const json = await res.json();
                     if (json.success && json.data) dbData = json.data;
                 } catch (e) {}
@@ -275,7 +282,7 @@ function DailyQuizPageContent() {
                             fetch('/api/game/history', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ userId: storedUserId, gameType: 'daily-quiz-bonus', score: bonusPoints })
+                                body: JSON.stringify({ gameType: 'daily-quiz-bonus', score: bonusPoints })
                             }).catch(console.error);
                         }
                     }
@@ -310,7 +317,7 @@ function DailyQuizPageContent() {
         };
 
         initialize();
-    }, [searchParams, router, userId]);
+    }, [searchParams, router, userId, saveData]);
 
   const runFireworks = () => {
     const duration = 3 * 1000;
@@ -364,58 +371,65 @@ function DailyQuizPageContent() {
     const thaiDays = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
 
     return (
-        <div className="bg-white/90 backdrop-blur-sm p-4 rounded-2xl border-2 border-white shadow-sm mb-6 w-full transform transition-all hover:shadow-md">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-slate-700">📅 รอบภารกิจ 7 วัน</h3>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${streakCount > 0 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}`}>
+        <div className="bg-white/90 backdrop-blur-sm p-3 sm:p-4 rounded-2xl border-2 border-white shadow-sm mb-6 w-full transition-all hover:shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                <h3 className="font-bold text-slate-700 text-sm sm:text-base">📅 รอบภารกิจ 7 วัน</h3>
+                <span className={`w-fit px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${streakCount > 0 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}`}>
                     🔥 ต่อเนื่อง {streakCount} วัน
                 </span>
             </div>
-            
-            <div className="flex justify-between items-center relative px-2">
-                <div className="absolute top-[1.25rem] left-0 w-full h-1.5 bg-gray-100 -z-0 rounded-full"></div>
-                
-                {[0, 1, 2, 3, 4, 5, 6].map((offset) => {
-                    const targetDate = new Date(windowStartDate);
-                    targetDate.setDate(targetDate.getDate() + offset);
-                    targetDate.setHours(0,0,0,0);
-                    
-                    const targetTime = targetDate.getTime();
-                    const todayTime = today.getTime();
-                    const isPlayed = historyTimes.includes(targetTime);
-                    
-                    const dayNumber = (currentWeek * 7) + offset + 1;
-                    const dayIndex = targetDate.getDay();
-                    const dayName = thaiDays[dayIndex];  
 
-                    let status = 'locked';
-                    if (targetTime < todayTime) status = isPlayed ? 'done' : 'missed';
-                    else if (targetTime === todayTime) status = isPlayed ? 'done' : 'current';
+            <div className="relative">
+                <div className="absolute top-5 left-0 right-0 h-1.5 bg-gray-100 rounded-full"></div>
+                <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                    {[0, 1, 2, 3, 4, 5, 6].map((offset) => {
+                        const targetDate = new Date(windowStartDate);
+                        targetDate.setDate(targetDate.getDate() + offset);
+                        targetDate.setHours(0, 0, 0, 0);
 
-                    return (
-                        <div key={offset} className="flex flex-col items-center relative z-10 w-1/7">
-                            <div className={`
-                                w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center border-[3px] text-sm md:text-base font-bold transition-all duration-500 mb-1
-                                ${status === 'done' ? 'bg-green-500 border-green-200 text-white shadow-md scale-105' : ''}
-                                ${status === 'missed' ? 'bg-rose-500 border-rose-200 text-white shadow-sm' : ''}
-                                ${status === 'current' ? 'bg-white border-blue-500 text-blue-600 shadow-xl ring-4 ring-blue-100 scale-110' : ''}
-                                ${status === 'locked' ? 'bg-white border-gray-200 text-gray-400' : ''}
-                            `}>
-                                {status === 'done' && '✓'}
-                                {status === 'missed' && dayNumber}
-                                {status === 'current' && dayNumber}
-                                {status === 'locked' && (offset === 6 ? '🎁' : dayNumber)}
+                        const targetTime = targetDate.getTime();
+                        const todayTime = today.getTime();
+                        const isPlayed = historyTimes.includes(targetTime);
+
+                        const dayNumber = (currentWeek * 7) + offset + 1;
+                        const dayIndex = targetDate.getDay();
+                        const dayName = thaiDays[dayIndex];
+
+                        let status = 'locked';
+                        if (targetTime < todayTime) status = isPlayed ? 'done' : 'missed';
+                        else if (targetTime === todayTime) status = isPlayed ? 'done' : 'current';
+
+                        return (
+                            <div key={offset} className="relative z-10 flex flex-col items-center">
+                                <div
+                                    className={`
+                                        w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center border-[3px]
+                                        text-xs sm:text-sm font-bold transition-all duration-500 mb-1
+                                        ${status === 'done' ? 'bg-green-500 border-green-500 text-white shadow-md scale-105' : ''}
+                                        ${status === 'missed' ? 'bg-rose-500 border-rose-500 text-white shadow-sm' : ''}
+                                        ${status === 'current' ? 'bg-white border-blue-500 text-blue-600 shadow-xl ring-4 ring-blue-100 scale-110' : ''}
+                                        ${status === 'locked' ? 'bg-white border-gray-200 text-gray-400' : ''}
+                                    `}
+                                >
+                                    {status === 'done' && dayNumber}
+                                    {status === 'missed' && dayNumber}
+                                    {status === 'current' && dayNumber}
+                                    {status === 'locked' && (offset === 6 ? '🎁' : dayNumber)}
+                                </div>
+
+                                <span
+                                    className={`text-[10px] sm:text-xs font-medium
+                                        ${status === 'current' ? 'text-blue-600 font-bold' :
+                                          status === 'missed' ? 'text-rose-400' :
+                                          status === 'done' ? 'text-green-600' : 'text-gray-400'}
+                                    `}
+                                >
+                                    {dayName}
+                                </span>
                             </div>
-
-                            <span className={`text-[10px] md:text-xs font-medium
-                                ${status === 'current' ? 'text-blue-600 font-bold' :
-                                  status === 'missed' ? 'text-rose-400' :
-                                  status === 'done' ? 'text-green-600' : 'text-gray-400'}`}>
-                                {dayName}
-                            </span>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
@@ -425,12 +439,12 @@ function DailyQuizPageContent() {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-[#7EC8FF] p-4 relative overflow-hidden">
                 <PerfectCloudTheme />
-                <div className="relative z-10 bg-white/95 p-10 rounded-[2.5rem] shadow-2xl text-center max-w-md animate-pop-in border-4 border-white backdrop-blur-md">
+                <div className="relative z-10 bg-white/95 p-6 sm:p-10 rounded-[2.5rem] shadow-2xl text-center max-w-md animate-pop-in border-4 border-white backdrop-blur-md">
                     <div className="flex flex-col items-center mb-6">
-                        <span className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 shadow-inner animate-bounce mb-4 text-6xl border-4 border-white">🔊</span>
-                        <h1 className="text-4xl font-black text-slate-800 mb-2 drop-shadow-sm">เปิดเสียงเกม</h1>
+                        <span className="inline-flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 shadow-inner animate-bounce mb-4 text-5xl sm:text-6xl border-4 border-white">🔊</span>
+                        <h1 className="text-3xl sm:text-4xl font-black text-slate-800 mb-2 drop-shadow-sm">เปิดเสียงเกม</h1>
                     </div>
-                    <p className="text-slate-600 mb-8 text-xl font-medium leading-relaxed">
+                    <p className="text-slate-600 mb-8 text-base sm:text-xl font-medium leading-relaxed">
                         เพื่อความสนุกและการฝึกความจำ<br/>กรุณาเปิดเสียงนะครับ
                     </p>
                     <div className="flex flex-col gap-4">
@@ -442,7 +456,7 @@ function DailyQuizPageContent() {
                                 speak("เสียงพร้อมใช้งานแล้วครับ");
                                 setTimeout(() => setStep(0), 0);
                             }}
-                            className="w-full py-5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold rounded-2xl text-2xl shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3 border-b-4 border-blue-800"
+                            className="w-full py-4 sm:py-5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold rounded-2xl text-lg sm:text-2xl shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3 border-b-4 border-blue-800"
                         >
                             <span className="text-3xl">✅</span>
                             <span>เริ่มใช้งาน</span>
@@ -454,7 +468,7 @@ function DailyQuizPageContent() {
                                 localStorage.setItem('daily_quiz_sound_disabled', 'true');
                                 if(cancel) cancel(); // ✅ สั่งยกเลิกเสียง TTS ทันทีที่กดปุ่ม
                             }}
-                            className="w-full py-5 bg-gradient-to-r from-gray-300 to-gray-400 hover:from-gray-400 hover:to-gray-500 text-gray-800 font-bold rounded-2xl text-2xl shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3 border-b-4 border-gray-500"
+                            className="w-full py-4 sm:py-5 bg-gradient-to-r from-gray-300 to-gray-400 hover:from-gray-400 hover:to-gray-500 text-gray-800 font-bold rounded-2xl text-lg sm:text-2xl shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3 border-b-4 border-gray-500"
                         >
                             <span className="text-3xl">🚫</span>
                             <span>ไม่ใช้เสียง</span>
@@ -471,10 +485,10 @@ function DailyQuizPageContent() {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-blue-50 p-4">
                 <PerfectCloudTheme />
-                <div className="relative z-10 bg-white/95 p-10 rounded-[2.5rem] shadow-2xl text-center max-w-md border-4 border-white backdrop-blur-md">
+                <div className="relative z-10 bg-white/95 p-6 sm:p-10 rounded-[2.5rem] shadow-2xl text-center max-w-md border-4 border-white backdrop-blur-md">
                     <div className="flex flex-col items-center mb-6">
-                        <span className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 shadow-inner mb-4 text-6xl border-4 border-white">🔒</span>
-                        <h1 className="text-3xl font-black text-slate-800 mb-2 drop-shadow-sm">สำหรับสมาชิกเท่านั้น</h1>
+                        <span className="inline-flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 shadow-inner mb-4 text-5xl sm:text-6xl border-4 border-white">🔒</span>
+                        <h1 className="text-2xl sm:text-3xl font-black text-slate-800 mb-2 drop-shadow-sm">สำหรับสมาชิกเท่านั้น</h1>
                     </div>
                     <p className="text-slate-600 mb-8 text-lg font-medium leading-relaxed">
                         กรุณาสมัครสมาชิกหรือเข้าสู่ระบบ<br/>เพื่อเล่นภารกิจประจำวัน
@@ -505,31 +519,31 @@ function DailyQuizPageContent() {
     if (!isLoaded) return <div className="min-h-screen flex items-center justify-center text-blue-600 font-bold bg-blue-50">กำลังโหลด...</div>;
 
     return (
-        <div className="min-h-screen font-sans flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div className="min-h-screen font-sans flex flex-col items-center justify-start md:justify-center p-4 md:py-8 relative overflow-hidden">
                 <PerfectCloudTheme />
 
-                <div className="flex justify-end w-full max-w-3xl mt-4 mb-2">
-                    <span className="uppercase text-base font-bold text-blue-800 bg-white/80 px-6 py-2 rounded-full shadow border border-blue-100 tracking-widest select-none">ระดับง่าย</span>
+                <div className="flex justify-center sm:justify-end w-full max-w-3xl mt-4 mb-2">
+                    <span className="uppercase text-xs sm:text-base font-bold text-blue-800 bg-white/80 px-4 sm:px-6 py-2 rounded-full shadow border border-blue-100 tracking-widest select-none">ระดับง่าย</span>
                 </div>
 
                 <div className="w-full max-w-3xl relative z-10">
             
             {step === 0 && (
-                <div className="bg-white/90 backdrop-blur-md rounded-[2.5rem] shadow-xl p-6 md:p-8 border-4 border-white animate-fade-in-up">
+                <div className="bg-white/90 backdrop-blur-md rounded-[2.5rem] shadow-xl p-5 sm:p-6 md:p-8 border-4 border-white animate-fade-in-up">
                     <div className="text-center mb-6">
-                        <h1 className="text-4xl font-black text-[#1e3a8a] mb-2 tracking-tight">ภารกิจประจำวัน</h1>
-                        <p className="text-slate-500">ฝึกสมองวันละนิด จิตแจ่มใส</p>
+                        <h1 className="text-3xl sm:text-4xl font-black text-[#1e3a8a] mb-2 tracking-tight">ภารกิจประจำวัน</h1>
+                        <p className="text-sm sm:text-base text-slate-500">ฝึกสมองวันละนิด จิตแจ่มใส</p>
                     </div>
 
                     {renderTimeBasedBar()}
 
-                    <div className="space-y-3 mb-8 text-left bg-blue-50/80 p-6 rounded-2xl border border-blue-100">
+                    <div className="space-y-3 mb-8 text-left bg-blue-50/80 p-4 sm:p-6 rounded-2xl border border-blue-100">
                         <p className="font-bold text-slate-700 ml-1 mb-2 flex items-center gap-2">🎮 เกมวันนี้:</p>
                         {games.map((game, index) => (
-                            <div key={index} className="flex items-center p-4 bg-white rounded-2xl shadow-sm border border-blue-50 mb-3 last:mb-0">
-                                <span className="text-4xl mr-4 bg-blue-50 p-2 rounded-xl">{game.icon}</span>
-                                <div>
-                                    <div className="font-bold text-slate-800 text-lg">{game.title}</div>
+                            <div key={index} className="flex items-center gap-3 p-3 sm:p-4 bg-white rounded-2xl shadow-sm border border-blue-50 mb-3 last:mb-0">
+                                <span className="text-3xl sm:text-4xl bg-blue-50 p-2 rounded-xl shrink-0">{game.icon}</span>
+                                <div className="min-w-0">
+                                    <div className="font-bold text-slate-800 text-base sm:text-lg leading-snug">{game.title}</div>
                                     <div className="flex gap-2 mt-1">
                                         <span className="text-xs text-blue-600 font-bold bg-blue-100 px-3 py-1 rounded-full">
                                             {game.level === 1 ? 'ระดับง่าย' : 'ระดับยาก'}
@@ -542,7 +556,7 @@ function DailyQuizPageContent() {
 
                     <button
                         onClick={handleStartMission}
-                        className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl font-bold text-xl shadow-lg shadow-blue-200 transition-all transform hover:scale-[1.02] active:scale-95 border-b-4 border-blue-800 active:border-b-0 active:translate-y-1"
+                        className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl font-bold text-lg sm:text-xl shadow-lg shadow-blue-200 transition-all transform hover:scale-[1.02] active:scale-95 border-b-4 border-blue-800 active:border-b-0 active:translate-y-1"
                     >
                         🚀 เริ่มทำภารกิจ
                     </button>
@@ -550,7 +564,7 @@ function DailyQuizPageContent() {
                                         <div className="mt-6 text-center">
                                                 <Link
                                                     href="/welcome"
-                                                    className="w-full inline-block py-4 bg-white text-blue-500 font-bold text-xl rounded-2xl shadow-lg border-4 border-blue-200 hover:bg-blue-50 transition-all hover:scale-[1.02] active:scale-95 mt-2"
+                                                    className="w-full inline-block py-4 bg-white text-blue-500 font-bold text-lg sm:text-xl rounded-2xl shadow-lg border-4 border-blue-200 hover:bg-blue-50 transition-all hover:scale-[1.02] active:scale-95 mt-2"
                                                 >
                                                     หน้าเลือกเกม
                                                 </Link>
@@ -559,26 +573,26 @@ function DailyQuizPageContent() {
             )}
 
             {step > 0 && step <= 3 && (
-                <div className="bg-white/90 backdrop-blur-md rounded-[2.5rem] shadow-xl p-8 border-4 border-white text-center animate-fade-in">
-                    <div className="flex justify-between items-center mb-8">
+                <div className="bg-white/90 backdrop-blur-md rounded-[2.5rem] shadow-xl p-5 sm:p-8 border-4 border-white text-center animate-fade-in">
+                    <div className="flex justify-between items-center mb-6 sm:mb-8">
                         <span className="text-sm font-black text-slate-300 tracking-wider uppercase">DAILY QUEST</span>
                         <div className="flex gap-2">
                             {[1, 2, 3].map(i => (
-                                <div key={i} className={`h-3 w-10 rounded-full transition-all ${i <= step ? 'bg-blue-500' : 'bg-slate-200'}`}></div>
+                                <div key={i} className={`h-2.5 sm:h-3 w-7 sm:w-10 rounded-full transition-all ${i <= step ? 'bg-blue-500' : 'bg-slate-200'}`}></div>
                             ))}
                         </div>
                     </div>
 
-                    <div className="py-4">
-                        <div className="inline-block p-6 bg-blue-50 rounded-full mb-6 shadow-inner animate-bounce-slow">
-                            <div className="text-8xl">{games[step-1].icon}</div>
+                    <div className="py-2 sm:py-4">
+                        <div className="inline-block p-4 sm:p-6 bg-blue-50 rounded-full mb-5 sm:mb-6 shadow-inner animate-bounce-slow">
+                            <div className="text-6xl sm:text-8xl">{games[step-1].icon}</div>
                         </div>
-                        <h2 className="text-4xl font-black text-slate-800 mb-2">{games[step-1].title}</h2>
-                        <p className="text-slate-500 mb-10 font-medium">ความยาก{games[step-1].level === 1 ? 'ระดับง่าย' : 'ระดับยาก'}</p>
+                        <h2 className="text-3xl sm:text-4xl font-black text-slate-800 mb-2">{games[step-1].title}</h2>
+                        <p className="text-slate-500 mb-8 sm:mb-10 font-medium text-sm sm:text-base">ความยาก{games[step-1].level === 1 ? 'ระดับง่าย' : 'ระดับยาก'}</p>
 
                         <button
                             onClick={handleOpenGame}
-                            className="w-full max-w-sm py-5 bg-[#3B82F6] hover:bg-[#2563EB] text-white text-2xl font-bold rounded-2xl shadow-xl border-b-[6px] border-[#1D4ED8] active:border-b-0 active:translate-y-1.5 transition-all"
+                            className="w-full max-w-sm py-4 sm:py-5 bg-[#3B82F6] hover:bg-[#2563EB] text-white text-xl sm:text-2xl font-bold rounded-2xl shadow-xl border-b-[6px] border-[#1D4ED8] active:border-b-0 active:translate-y-1.5 transition-all"
                         >
                             ▶️ เล่นเกม
                         </button>
@@ -587,32 +601,32 @@ function DailyQuizPageContent() {
             )}
 
                 {step === 4 && (
-                <div className={`bg-white/90 backdrop-blur-md rounded-[3rem] shadow-2xl p-10 border-[6px] border-white text-center relative transform transition-all duration-700 cubic-bezier(0.34, 1.56, 0.64, 1) ${showCard ? 'scale-100 opacity-100 translate-y-0' : 'scale-50 opacity-0 translate-y-20'}`}>
+                <div className={`bg-white/90 backdrop-blur-md rounded-[2.5rem] sm:rounded-[3rem] shadow-2xl p-6 sm:p-10 border-[6px] border-white text-center relative transform transition-all duration-700 cubic-bezier(0.34, 1.56, 0.64, 1) ${showCard ? 'scale-100 opacity-100 translate-y-0' : 'scale-50 opacity-0 translate-y-20'}`}>
                     
                     <div className="inline-block mb-4 animate-bounce-slow">
-                        <span className="text-9xl filter drop-shadow-md">{streakCount % 7 === 0 ? '🎁' : '🎉'}</span>
+                        <span className="text-7xl sm:text-9xl filter drop-shadow-md">{streakCount % 7 === 0 ? '🎁' : '🎉'}</span>
                     </div>
                     
-                    <h2 className="text-5xl font-black text-[#1e3a8a] mb-2 tracking-tight">
+                    <h2 className="text-4xl sm:text-5xl font-black text-[#1e3a8a] mb-2 tracking-tight">
                         ภารกิจสำเร็จ!
                     </h2>
                     
-                    <p className="text-xl text-slate-600 font-medium mb-8">
+                    <p className="text-base sm:text-xl text-slate-600 font-medium mb-8">
                         คุณทำภารกิจวันนี้เสร็จสมบูรณ์แล้ว
                     </p>
 
-                    <div className="flex items-center justify-center gap-2 mb-8 bg-orange-50 py-2 px-6 rounded-full border border-orange-100 mx-auto shadow-sm">
-                        <span className="text-2xl">🔥</span>
-                        <span className="text-slate-600 font-bold">สะสมต่อเนื่อง:</span>
-                        <span className="text-2xl font-black text-orange-500">{streakCount} วัน</span>
+                    <div className="flex items-center justify-center gap-2 mb-8 bg-orange-50 py-2 px-4 sm:px-6 rounded-full border border-orange-100 mx-auto shadow-sm">
+                        <span className="text-xl sm:text-2xl">🔥</span>
+                        <span className="text-slate-600 font-bold text-sm sm:text-base">สะสมต่อเนื่อง:</span>
+                        <span className="text-xl sm:text-2xl font-black text-orange-500">{streakCount} วัน</span>
                     </div>
                     
                     <div className="bg-gradient-to-b from-[#FFFBEB] to-[#FEF3C7] border-2 border-[#FDE68A] p-6 rounded-3xl mb-8 shadow-inner relative overflow-hidden group max-w-xs mx-auto">
                         <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-r from-transparent via-white/40 to-transparent rotate-45 translate-x-[-100%] animate-shine"></div>
-                        <p className="text-[#92400E] font-bold text-lg mb-1 uppercase tracking-wide">
+                        <p className="text-[#92400E] font-bold text-base sm:text-lg mb-1 uppercase tracking-wide">
                             {streakCount % 7 === 0 ? 'โบนัสกล่องใหญ่' : 'โบนัสประจำวัน'}
                         </p>
-                        <div className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#F59E0B] to-[#D97706] drop-shadow-sm mt-2">
+                        <div className="text-6xl sm:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#F59E0B] to-[#D97706] drop-shadow-sm mt-2">
                              {streakCount % 7 === 0 ? '+500' : '+150'}
                         </div>
                         <div className="text-[#B45309] font-bold text-sm mt-1">คะแนนสะสม</div>
@@ -627,7 +641,7 @@ function DailyQuizPageContent() {
                             setStep(0);
                             router.push('/games/daily-quiz');
                         }}
-                        className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white font-bold text-xl shadow-lg shadow-blue-200 hover:scale-[1.02] transition-all border-b-4 border-[#1D4ED8] active:border-b-0 active:translate-y-1"
+                        className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white font-bold text-lg sm:text-xl shadow-lg shadow-blue-200 hover:scale-[1.02] transition-all border-b-4 border-[#1D4ED8] active:border-b-0 active:translate-y-1"
                     >
                         กลับหน้าภารกิจ 
                     </button>

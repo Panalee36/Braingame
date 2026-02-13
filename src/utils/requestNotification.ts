@@ -3,7 +3,7 @@
 import { getToken } from "firebase/messaging";
 import { messaging } from "@/lib/firebase";
 
-export async function requestNotificationPermission(userId: string) {
+export async function requestNotificationPermission() {
   // ✅ 1. เพิ่ม "ตัวกัน" (Guard Clause) ตรงนี้
   // ถ้าไม่มี messaging (แปลว่าอยู่บน Server หรือ Browser ไม่รองรับ) ให้จบการทำงานเลย
   if (!messaging) {
@@ -26,7 +26,7 @@ export async function requestNotificationPermission(userId: string) {
         await fetch("/api/save-fcm-token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId, token }),
+          body: JSON.stringify({ token }),
         });
         console.log("บันทึก Token เรียบร้อย");
       }

@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import Link from 'next/link'
@@ -245,6 +246,8 @@ function SequentialMemoryGameContent() {
     setDragSource(null);
   };
 
+  // initializeGame intentionally excluded to avoid dependency churn; trigger is controlled by mode and level.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isDailyMode && !gameStarted && !gameCompleted) {
         const timer = setTimeout(() => {
@@ -252,7 +255,7 @@ function SequentialMemoryGameContent() {
         }, 100);
         return () => clearTimeout(timer);
     }
-  }, [isDailyMode, levelFromQuery]);
+  }, [isDailyMode, levelFromQuery, gameStarted, gameCompleted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ⏱️ นับเวลาตอนจำภาพ (เพิ่มเงื่อนไขไม่ให้เวลาเดินถ้ายังอธิบายไม่จบ)
   useEffect(() => {

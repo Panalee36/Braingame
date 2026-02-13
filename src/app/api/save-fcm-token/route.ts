@@ -1,24 +1,30 @@
-// src/app/api/save-fcm-token/route.ts
 import { NextResponse } from "next/server";
-import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import clientPromise from "@/lib/mongodb";
+import { getSessionFromRequest } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
-    const { userId, token } = await req.json();
+    const session = getSessionFromRequest(req);
+    if (!session) {
+      return NextResponse.json({ success: false }, { status: 401 });
+    }
+
+    const { token } = await req.json();
+    if (typeof token !== "string" || token.length < 20) {
+      return NextResponse.json({ success: false }, { status: 400 });
+    }
+
     const client = await clientPromise;
-
-    // ✅ ต้องเป็น game_db (เหมือนไฟล์ cron)
     const db = client.db("game_db");
-
-    // ✅ ต้องเป็น players (เหมือนไฟล์ cron)
-    // และต้องแปลง userId เป็น ObjectId
-    await db
-      .collection("players")
-      .updateOne({ _id: new ObjectId(userId) }, { $set: { fcmToken: token } });
+    await db.collection("players").updateOne(
+      { _id: new ObjectId(session.userId) },
+      { $set: { fcmToken: token } },
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("Save FCM token error:", error);
     return NextResponse.json({ success: false }, { status: 500 });
   }
 }

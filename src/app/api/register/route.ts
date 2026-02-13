@@ -1,20 +1,30 @@
-// Health check endpoint (GET)
+import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import clientPromise from "@/lib/mongodb";
+
 export async function GET() {
   return NextResponse.json({ message: "API Register พร้อมใช้งาน" });
 }
-import clientPromise from "@/lib/mongodb";
-import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { username, password, age } = body;
+    const { username, password, age } = await req.json();
 
-    if (!username || !password || !age) {
+    const normalizedUsername = typeof username === "string" ? username.trim() : "";
+    const normalizedLower = normalizedUsername.toLowerCase();
+    const parsedAge = Number(age);
+
+    if (!normalizedUsername || !password || !Number.isFinite(parsedAge)) {
       return NextResponse.json(
         { message: "กรุณากรอกข้อมูลให้ครบ" },
-        { status: 400 }
+        { status: 400 },
+      );
+    }
+
+    if (String(password).length < 6) {
+      return NextResponse.json(
+        { message: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" },
+        { status: 400 },
       );
     }
 
@@ -22,21 +32,28 @@ export async function POST(req: Request) {
     const db = client.db("game_db");
     const users = db.collection("players");
 
-    const existing = await users.findOne({ username });
+    const escapedUsername = normalizedUsername.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const existing = await users.findOne({
+      $or: [
+        { usernameLower: normalizedLower },
+        { username: { $regex: new RegExp(`^${escapedUsername}$`, "i") } },
+      ],
+    });
+
     if (existing) {
       return NextResponse.json(
         { message: "ชื่อผู้ใช้นี้ถูกใช้แล้ว" },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
-    const hashed = await bcrypt.hash(password, 10);
-
+    const hashed = await bcrypt.hash(password, 12);
     const createdAt = new Date();
     const insertResult = await users.insertOne({
-      username,
+      username: normalizedUsername,
+      usernameLower: normalizedLower,
       password: hashed,
-      age: Number(age),
+      age: parsedAge,
       createdAt,
     });
 
@@ -44,18 +61,17 @@ export async function POST(req: Request) {
       message: "สมัครสมาชิกสำเร็จ!",
       user: {
         id: insertResult.insertedId.toHexString(),
-        username,
-        age: Number(age),
+        username: normalizedUsername,
+        age: parsedAge,
         createdAt,
         anonId: `anon_${insertResult.insertedId.toHexString()}`,
       },
     });
-  } catch (error: any) {
-    // ตรวจสอบว่า error มี message หรือไม่
-    const errMsg = error?.message || "เกิดข้อผิดพลาด";
+  } catch (error) {
+    console.error("REGISTER ERROR:", error);
     return NextResponse.json(
-      { message: errMsg },
-      { status: 500 }
+      { message: "เกิดข้อผิดพลาดในระบบ" },
+      { status: 500 },
     );
   }
 }

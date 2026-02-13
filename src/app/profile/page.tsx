@@ -109,7 +109,11 @@ export default function ProfilePage() {
         }
 
         try {
-            const res = await fetch(`/api/game/history?userId=${userId}`);
+            const res = await fetch(`/api/game/history`);
+            if (res.status === 401) {
+                router.push('/login');
+                return;
+            }
             const data = await res.json();
 
             if (data.success) {
@@ -149,7 +153,7 @@ export default function ProfilePage() {
     };
 
     fetchHistory();
-  }, []);
+  }, [router]);
 
   // ฟังก์ชันสำหรับคลิกดูประวัติการเล่นเกมนั้นๆ
   const handleGameClick = async (game: GameStat) => {
@@ -158,7 +162,11 @@ export default function ProfilePage() {
     
     try {
       const userId = localStorage.getItem('userId');
-      const res = await fetch(`/api/game/history?userId=${userId}`);
+      const res = await fetch(`/api/game/history`);
+      if (res.status === 401) {
+        router.push('/login');
+        return;
+      }
       const data = await res.json();
       
       if (data.success) {
@@ -182,22 +190,21 @@ export default function ProfilePage() {
   const handleEnableNotifications = () => {
     const userId = localStorage.getItem('userId');
     if (userId) {
-      requestNotificationPermission(userId);
+      requestNotificationPermission();
       alert("ระบบกำลังขออนุญาตเปิดการแจ้งเตือน... กรุณากด 'อนุญาต' (Allow) ที่มุมจอ");
     } else {
       alert("ไม่พบข้อมูลผู้ใช้");
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     // เคลียร์ข้อมูลทั้งหมด
     localStorage.removeItem('userId'); 
     localStorage.removeItem('profile_username');
     localStorage.removeItem('profile_age');
     localStorage.removeItem('daily_quiz_progress_v2'); 
     
-    // ลบ Cookie Token
-    document.cookie = "token=; path=/; max-age=0";
+    await fetch('/api/logout', { method: 'POST' });
     
     router.push('/login');
   };

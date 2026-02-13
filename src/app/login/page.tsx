@@ -61,9 +61,6 @@ export default function LoginPage() {
         }
         // -----------------------------------------------------------------------
 
-        if (data.token) {
-            document.cookie = `token=${data.token}; path=/; max-age=86400; secure; HttpOnly=true; SameSite=Lax`;
-        }
         router.push('/welcome');
       } else {
         setError(data.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');

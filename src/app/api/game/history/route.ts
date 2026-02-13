@@ -1,34 +1,65 @@
 import { NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
+import { getSessionFromRequest } from "@/lib/auth";
 
-// 1. บันทึกคะแนน (POST)
+const ALLOWED_GAME_TYPES = new Set([
+  "color-matching",
+  "fast-math",
+  "sequential-memory",
+  "animal-sound",
+  "vocabulary",
+  "daily-quiz-bonus",
+]);
+
 export async function POST(req: Request) {
   try {
-    const { userId, gameType, score, timeUsed } = await req.json();
-
-    if (!userId || !gameType || score === undefined) {
+    const session = getSessionFromRequest(req);
+    if (!session) {
       return NextResponse.json(
-        { success: false, message: "ข้อมูลไม่ครบถ้วน" },
+        { success: false, message: "Unauthorized" },
+        { status: 401 },
+      );
+    }
+
+    const { gameType, score, timeUsed } = await req.json();
+    if (!ALLOWED_GAME_TYPES.has(String(gameType))) {
+      return NextResponse.json(
+        { success: false, message: "Invalid game type" },
         { status: 400 },
       );
+    }
+
+    const parsedScore = Number(score);
+    if (!Number.isFinite(parsedScore)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid score" },
+        { status: 400 },
+      );
+    }
+
+    const insertData: {
+      userId: string;
+      gameType: string;
+      score: number;
+      createdAt: Date;
+      timeUsed?: number;
+    } = {
+      userId: session.userId,
+      gameType: String(gameType),
+      score: parsedScore,
+      createdAt: new Date(),
+    };
+
+    if (timeUsed !== undefined) {
+      const parsedTimeUsed = Number(timeUsed);
+      if (Number.isFinite(parsedTimeUsed)) {
+        insertData.timeUsed = parsedTimeUsed;
+      }
     }
 
     const client = await clientPromise;
     const db = client.db("game_db");
     const collection = db.collection("game_history");
-
-    const insertData: any = {
-      userId,
-      gameType,
-      score: Number(score),
-      createdAt: new Date(),
-    };
-
-    // เพิ่ม timeUsed ถ้ามีการส่งมา (สำหรับเกมจำศัพท์)
-    if (timeUsed !== undefined) {
-      insertData.timeUsed = Number(timeUsed);
-    }
-
     await collection.insertOne(insertData);
 
     return NextResponse.json({ success: true, message: "บันทึกคะแนนสำเร็จ" });
@@ -41,27 +72,23 @@ export async function POST(req: Request) {
   }
 }
 
-// 2. ดึงประวัติการเล่น (GET)
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
+    const session = getSessionFromRequest(req);
+    if (!session) {
       return NextResponse.json(
-        { success: false, message: "ระบุ UserId" },
-        { status: 400 },
+        { success: false, message: "Unauthorized" },
+        { status: 401 },
       );
     }
 
     const client = await clientPromise;
     const db = client.db("game_db");
     const collection = db.collection("game_history");
-
-    // ดึงข้อมูลเฉพาะของ userId นี้ และเรียงจากล่าสุดไปเก่าสุด
     const history = await collection
-      .find({ userId })
+      .find({ userId: session.userId })
       .sort({ createdAt: -1 })
+      .limit(1000)
       .toArray();
 
     return NextResponse.json({ success: true, history });

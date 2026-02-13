@@ -1,65 +1,53 @@
 import { NextResponse } from "next/server";
-import clientPromise from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
+import clientPromise from "@/lib/mongodb";
+import { createSessionToken, setSessionCookie } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
-    // 1️⃣ รับข้อมูลจาก frontend
     const { username, password } = await req.json();
 
-    // 2️⃣ ทำความสะอาด input
-    const normalizedUsername =
-      typeof username === "string" ? username.trim() : "";
+    const normalizedUsername = typeof username === "string" ? username.trim() : "";
+    const normalizedLower = normalizedUsername.toLowerCase();
 
     if (!normalizedUsername || !password) {
       return NextResponse.json(
         { success: false, message: "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // 3️⃣ เชื่อมต่อ MongoDB
-    // Wait for the client promise. If MONGODB_URI was missing, this will throw now, 
-    // and be caught by the catch block below.
     const client = await clientPromise;
-
-    // ❗ ต้องระบุ database ให้ตรงกับ Compass
     const db = client.db("game_db");
-
-    // ❗ ต้องใช้ collection ที่ถูกต้อง
     const usersCollection = db.collection("players");
 
-    // Escape regex characters to prevent ReDoS
-    const escapedUsername = normalizedUsername.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedUsername = normalizedUsername.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-    // 4️⃣ ค้นหาผู้ใช้ (ไม่สนตัวพิมพ์เล็ก/ใหญ่)
     const user = await usersCollection.findOne({
-      username: {
-        $regex: new RegExp(`^${escapedUsername}$`, "i"),
-      },
+      $or: [
+        { usernameLower: normalizedLower },
+        { username: { $regex: new RegExp(`^${escapedUsername}$`, "i") } },
+      ],
     });
 
-    if (!user) {
+    const passwordMatches = user ? await bcrypt.compare(password, user.password) : false;
+
+    if (!user || !passwordMatches) {
       return NextResponse.json(
-        { success: false, message: "ไม่พบผู้ใช้" },
-        { status: 404 }
+        { success: false, message: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" },
+        { status: 401 },
       );
     }
 
-    // 5️⃣ ตรวจสอบรหัสผ่าน (bcrypt)
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordCorrect) {
-      return NextResponse.json(
-        { success: false, message: "รหัสผ่านไม่ถูกต้อง" },
-        { status: 401 }
+    if (!user.usernameLower) {
+      await usersCollection.updateOne(
+        { _id: user._id },
+        { $set: { usernameLower: String(user.username).toLowerCase() } },
       );
     }
 
-    // 6️⃣ Login สำเร็จ
     const anonId = `anon_${user._id.toHexString()}`;
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: "เข้าสู่ระบบสำเร็จ",
       user: {
@@ -70,12 +58,15 @@ export async function POST(req: Request) {
         anonId,
       },
     });
+
+    const sessionToken = createSessionToken(user._id.toHexString(), String(user.username));
+    setSessionCookie(response, sessionToken);
+    return response;
   } catch (error) {
     console.error("LOGIN ERROR:", error);
-
     return NextResponse.json(
       { success: false, message: "เกิดข้อผิดพลาดในระบบ" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

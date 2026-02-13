@@ -200,11 +200,9 @@ function VocabularyGameContent() {
   const initializeGame = () => {
     const wordCount = 20; // กำหนดจำนวนคำตายตัว (20 คำ)
     // สุ่มคำโดยไม่ให้ซ้ำ
-    let allWords = generateVocabularyWords(1, 100); // สมมติว่าฟังก์ชันนี้คืนคำศัพท์ทั้งหมดที่มี
+    const allWords: VocabularyWord[] = generateVocabularyWords(1, 100); // สมมติว่าฟังก์ชันนี้คืนคำศัพท์ทั้งหมดที่มี
     // กรองซ้ำด้วย Set
-    const uniqueWords = Array.from(new Set(allWords.map(w => w.word))).map(word => {
-      return allWords.find(w => w.word === word);
-    }).filter((w): w is VocabularyWord => !!w);
+    const uniqueWords = Array.from(new Map(allWords.map((w) => [w.word, w])).values());
     // สุ่มเลือก wordCount คำ
     const shuffled = uniqueWords.sort(() => Math.random() - 0.5);
     const words = shuffled.slice(0, wordCount);

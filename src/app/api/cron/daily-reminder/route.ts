@@ -2,9 +2,25 @@ import { NextResponse } from "next/server";
 import admin from "firebase-admin";
 import clientPromise from "@/lib/mongodb";
 
+function isAuthorizedCronRequest(req: Request) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+
+  const authHeader = req.headers.get("authorization");
+  if (authHeader === `Bearer ${secret}`) return true;
+
+  const cronSecretHeader = req.headers.get("x-cron-secret");
+  if (cronSecretHeader === secret) return true;
+
+  return false;
+}
+
 export async function GET(req: Request) {
+  if (!isAuthorizedCronRequest(req)) {
+    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  }
+
   try {
-    // 1. ตั้งค่า Firebase Admin (เช็คการ Initialize)
     if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.cert({
@@ -15,11 +31,9 @@ export async function GET(req: Request) {
       });
     }
 
-    // 2. เชื่อมต่อฐานข้อมูล MongoDB
     const client = await clientPromise;
     const db = client.db("game_db");
 
-    // 3. ค้นหาผู้เล่นที่มี Token พร้อมส่ง
     const players = await db
       .collection("players")
       .find({ fcmToken: { $exists: true, $ne: null } })
@@ -29,24 +43,21 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: "ไม่พบผู้ใช้ที่มี Token ในระบบ" });
     }
 
-    // กรอง Token ที่ไม่ซ้ำกัน
-    const tokens = [...new Set(players.map((p) => p.fcmToken))];
+    const tokens = [...new Set(players.map((p) => p.fcmToken).filter(Boolean))];
+    if (tokens.length === 0) {
+      return NextResponse.json({ message: "ไม่พบ Token ที่ใช้งานได้" });
+    }
 
-    // 4. ตั้งค่าข้อความแจ้งเตือนสำหรับผู้สูงอายุ
     const message: admin.messaging.MulticastMessage = {
       notification: {
-        title: "☀️ สวัสดีตอนเช้าครับ!",
-        body: "ได้เวลามาบริหารสมองกันแล้ว วันนี้มีเกมสนุกๆ รออยู่นะครับ 🎮",
+        title: "สวัสดีตอนเช้าครับ!",
+        body: "ได้เวลามาบริหารสมองกันแล้ว วันนี้มีเกมสนุกๆ รออยู่นะครับ",
       },
-      tokens: tokens,
+      tokens,
     };
 
-    // 5. ส่งแจ้งเตือนแบบกลุ่ม (Multicast)
     const response = await admin.messaging().sendEachForMulticast(message);
-
-    console.log(
-      `✅ ส่งสำเร็จ: ${response.successCount}, ❌ ล้มเหลว: ${response.failureCount}`,
-    );
+    console.log(`ส่งสำเร็จ: ${response.successCount}, ล้มเหลว: ${response.failureCount}`);
 
     return NextResponse.json({
       success: true,
@@ -54,7 +65,7 @@ export async function GET(req: Request) {
       failedCount: response.failureCount,
     });
   } catch (error: any) {
-    console.error("❌ Cron Job Error:", error);
+    console.error("Cron Job Error:", error);
     return NextResponse.json(
       { success: false, error: error.message || "เกิดข้อผิดพลาดภายในระบบ" },
       { status: 500 },

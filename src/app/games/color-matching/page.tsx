@@ -182,11 +182,13 @@ function ColorMatchingGameContent() {
     setPreviewTimer(10) 
   }
 
+  // startGame intentionally excluded to avoid effect churn; this should only react to mode/query/state gates.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isDailyMode && !gameStarted && !gameCompleted && levelParam) {
       startGame(parseInt(levelParam, 10) || 1);
     }
-  }, [isDailyMode, levelParam, gameStarted, gameCompleted]);
+  }, [isDailyMode, levelParam, gameStarted, gameCompleted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ⏱️ ระบบนับเวลาตอนจำไพ่
   useEffect(() => {
