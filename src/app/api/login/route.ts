@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import clientPromise from "@/lib/mongodb";
 import { createSessionToken, setSessionCookie } from "@/lib/auth";
@@ -8,9 +8,10 @@ export async function POST(req: Request) {
     const { username, password } = await req.json();
 
     const normalizedUsername = typeof username === "string" ? username.trim() : "";
+    const normalizedPassword = typeof password === "string" ? password : "";
     const normalizedLower = normalizedUsername.toLowerCase();
 
-    if (!normalizedUsername || !password) {
+    if (!normalizedUsername || !normalizedPassword) {
       return NextResponse.json(
         { success: false, message: "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน" },
         { status: 400 },
@@ -30,7 +31,9 @@ export async function POST(req: Request) {
       ],
     });
 
-    const passwordMatches = user ? await bcrypt.compare(password, user.password) : false;
+    const storedPasswordHash = typeof user?.password === "string" ? user.password : "";
+    const passwordMatches =
+      user && storedPasswordHash ? await bcrypt.compare(normalizedPassword, storedPasswordHash) : false;
 
     if (!user || !passwordMatches) {
       return NextResponse.json(
@@ -39,6 +42,12 @@ export async function POST(req: Request) {
       );
     }
 
+    const userId =
+      user._id && typeof user._id === "object" && typeof user._id.toHexString === "function"
+        ? user._id.toHexString()
+        : String(user._id);
+    const usernameForSession = String(user.username ?? normalizedUsername);
+
     if (!user.usernameLower) {
       await usersCollection.updateOne(
         { _id: user._id },
@@ -46,12 +55,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const anonId = `anon_${user._id.toHexString()}`;
+    const anonId = `anon_${userId}`;
     const response = NextResponse.json({
       success: true,
       message: "เข้าสู่ระบบสำเร็จ",
       user: {
-        id: user._id.toHexString(),
+        id: userId,
         username: user.username,
         age: user.age,
         createdAt: user.createdAt,
@@ -59,7 +68,7 @@ export async function POST(req: Request) {
       },
     });
 
-    const sessionToken = createSessionToken(user._id.toHexString(), String(user.username));
+    const sessionToken = createSessionToken(userId, usernameForSession);
     setSessionCookie(response, sessionToken);
     return response;
   } catch (error) {

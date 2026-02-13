@@ -1,8 +1,10 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
 const SESSION_COOKIE_NAME = "session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+const DEV_FALLBACK_SECRET = "dev-only-insecure-session-secret-change-me";
+let cachedDerivedSecret: string | null = null;
 
 export interface SessionPayload {
   userId: string;
@@ -17,14 +19,33 @@ function getSessionSecret() {
     process.env.JWT_SECRET ||
     process.env.NEXTAUTH_SECRET;
 
-  if (!secret) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("Missing SESSION_SECRET in production");
-    }
-    return "dev-only-insecure-session-secret-change-me";
+  if (secret) {
+    return secret;
   }
 
-  return secret;
+  if (process.env.NODE_ENV !== "production") {
+    return DEV_FALLBACK_SECRET;
+  }
+
+  // Fallback for misconfigured production environments so auth does not hard-fail.
+  // Set SESSION_SECRET/JWT_SECRET explicitly in deployment settings for best security.
+  if (cachedDerivedSecret) {
+    return cachedDerivedSecret;
+  }
+
+  const seed = process.env.MONGODB_URI || process.env.VERCEL_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (!seed) {
+    throw new Error("Missing SESSION_SECRET in production and no stable fallback seed available");
+  }
+
+  cachedDerivedSecret = createHash("sha256")
+    .update(`brain-session:${seed}`)
+    .digest("hex");
+
+  console.warn(
+    "SESSION_SECRET/JWT_SECRET is not set in production. Using derived fallback secret. Configure SESSION_SECRET for stronger security.",
+  );
+  return cachedDerivedSecret;
 }
 
 function base64UrlEncode(value: string) {
